@@ -5,130 +5,60 @@ Owner: Person 5
 Reads:  state["question"], state["retrieved_passages"], state["conflict_report"]
 Writes: state["final_report"], state["citations"], state["unverified_claims"]
 
-Fix v2: Passage compression replaced with simple 500-char truncation —
-        saves 5 serial LLM calls (~30s latency reduction).
-        reasoning_trace returned as plain list for operator.add reducer.
+Contract:
+  - final_report: Markdown string with inline [Source N] citations and ## headers
+  - citations: List[str] formatted as "[N] Title — url"
+  - unverified_claims: List[str] — claims without a [Source N] tag (from self-check)
+  - If conflict_report.has_conflicts is True, report MUST include ## Conflicting Evidence section
+  - reasoning_trace: plain List[str] with exactly 1 new entry ("[P5] ...")
+    LangGraph appends via operator.add.
 
 Run in isolation:
     python agents/p5_synthesizer.py
 """
 
-import json
-import os
-from typing import List
-
-from langchain_anthropic import ChatAnthropic
-from langchain_core.messages import SystemMessage, HumanMessage
-
-from state import ResearchState, Passage, mock_state
-
-llm = ChatAnthropic(
-    model="claude-sonnet-4-6",
-    temperature=0.3,
-    api_key=os.getenv("ANTHROPIC_API_KEY", ""),
-)
-llm_check = ChatAnthropic(
-    model="claude-sonnet-4-6",
-    temperature=0,
-    api_key=os.getenv("ANTHROPIC_API_KEY", ""),
-)
-
-SYNTHESIS_SYSTEM_BASE = """You are a research synthesizer. Write a structured, well-organized report.
-
-Rules (follow strictly):
-- Every factual claim MUST be cited inline as [Source N]
-- Never assert anything not found in the provided passages
-- Use markdown formatting with ## section headers
-- End with a ## Sources section listing all cited sources
-- Be precise and academic in tone"""
-
-SYNTHESIS_SYSTEM_CONFLICT = SYNTHESIS_SYSTEM_BASE + """
-
-IMPORTANT: The sources contain conflicting evidence. You MUST include a
-## Conflicting Evidence section that explicitly presents both sides and
-explains the disagreement. Do not take a side — present both views fairly."""
-
-SELF_CHECK_SYSTEM = """You are a fact-checker reviewing a research report.
-List every factual claim in the report that does NOT have an inline [Source N] citation.
-Return a JSON array of strings. Each string is one uncited claim.
-Return [] if all claims are properly cited."""
-
-
-def _build_passages_block(passages: List[Passage]) -> str:
-    """
-    Format passages as a numbered block for the synthesis prompt.
-    Fix v2: simple 500-char truncation instead of per-passage LLM compression
-            — saves 5 serial API calls and ~30s of latency.
-    """
-    lines = []
-    for i, p in enumerate(passages, 1):
-        text = p["text"][:500].strip()
-        lines.append(f"[Source {i}] {p['title']} ({p['source']})\n{text}")
-    return "\n\n".join(lines)
-
-
-def _build_citations(passages: List[Passage]) -> List[str]:
-    return [
-        f"[{i}] {p['title']} — {p['url']}"
-        for i, p in enumerate(passages, 1)
-    ]
+from state import ResearchState, mock_state
 
 
 def synthesize_report(state: ResearchState) -> ResearchState:
-    """LangGraph node — P5 (handles both conflict and non-conflict paths)."""
+    """
+    TODO (Person 5): Implement report synthesis using Claude.
+    - Build a numbered passages block (truncate each to 500 chars)
+    - Choose system prompt: SYNTHESIS_SYSTEM_BASE or SYNTHESIS_SYSTEM_CONFLICT
+      based on conflict_report.has_conflicts
+    - Call LLM to generate final_report (Markdown with inline [Source N] citations)
+    - Run self-check LLM pass: find claims without a citation → unverified_claims
+    - Build citations list from retrieved_passages
+    - Return exactly one reasoning_trace entry
+    """
+    # Mock output so pipeline runs end-to-end from Day 1
     passages = state["retrieved_passages"]
-    conflict_report = state["conflict_report"]
     question = state["question"]
+    has_conflicts = state["conflict_report"]["has_conflicts"]
 
-    passages_block = _build_passages_block(passages)
-
-    if conflict_report["has_conflicts"]:
-        system_prompt = SYNTHESIS_SYSTEM_CONFLICT
-        conflict_summary = "\n".join(
-            f"- {pair['explanation']}" for pair in conflict_report["pairs"]
-        )
-        user_prompt = (
-            f"Research question: {question}\n\n"
-            f"Conflicting evidence found:\n{conflict_summary}\n\n"
-            f"Sources:\n{passages_block}"
-        )
-    else:
-        system_prompt = SYNTHESIS_SYSTEM_BASE
-        user_prompt = (
-            f"Research question: {question}\n\n"
-            f"Sources:\n{passages_block}"
-        )
-
-    response = llm.invoke([
-        SystemMessage(content=system_prompt),
-        HumanMessage(content=user_prompt),
-    ])
-    final_report = response.content.strip()
-
-    # Self-check pass
-    check_response = llm_check.invoke([
-        SystemMessage(content=SELF_CHECK_SYSTEM),
-        HumanMessage(content=final_report),
-    ])
-    try:
-        unverified_claims: List[str] = json.loads(check_response.content)
-    except json.JSONDecodeError:
-        unverified_claims = []
-
-    citations = _build_citations(passages)
-
-    trace_entry = (
-        f"[P5] Report generated ({len(final_report)} chars). "
-        f"Unverified claims: {len(unverified_claims)}. "
-        f"Path: {'conflict' if conflict_report['has_conflicts'] else 'normal'}"
+    mock_report = (
+        f"## Research Summary\n\n"
+        f"This is a stub report for: *{question}*\n\n"
+        f"{'## Conflicting Evidence\\n\\nSTUB — conflict path active.\\n\\n' if has_conflicts else ''}"
+        f"[Source 1] Finding A. [Source 2] Finding B.\n\n"
+        f"## Sources\n"
+        + "\n".join(f"[{i+1}] {p['title']} — {p['url']}" for i, p in enumerate(passages))
     )
+
+    citations = [
+        f"[{i+1}] {p['title']} — {p['url']}"
+        for i, p in enumerate(passages)
+    ]
 
     return {
         **state,
-        "final_report": final_report,
+        "final_report": mock_report,
         "citations": citations,
-        "unverified_claims": unverified_claims,
-        "reasoning_trace": [trace_entry],  # operator.add handles appending
+        "unverified_claims": [],
+        "reasoning_trace": [
+            f"[P5] STUB — generated mock report ({len(mock_report)} chars), "
+            f"path={'conflict' if has_conflicts else 'normal'}"
+        ],
     }
 
 
@@ -145,5 +75,4 @@ if __name__ == "__main__":
     for c in result["citations"]:
         print(f"  {c}")
     print(f"\n=== UNVERIFIED CLAIMS ({len(result['unverified_claims'])}) ===")
-    for claim in result["unverified_claims"]:
-        print(f"  - {claim}")
+    print("Trace:", result["reasoning_trace"])
