@@ -34,8 +34,8 @@ class TestDecomposer:
 
     def test_output_keys_present(self, monkeypatch):
         """sub_questions and reasoning_trace must be in output."""
-        from agents.p1_decomposer import decompose_query
-        import agents.p1_decomposer as mod
+        from agents.decomposer import decompose_query
+        import agents.decomposer as mod
 
         # Two calls: decompose + critique
         monkeypatch.setattr(mod.llm, "invoke", self._make_responses(
@@ -53,8 +53,8 @@ class TestDecomposer:
 
     def test_no_duplicates(self, monkeypatch):
         """Duplicate sub-questions should be removed before critique."""
-        from agents.p1_decomposer import decompose_query
-        import agents.p1_decomposer as mod
+        from agents.decomposer import decompose_query
+        import agents.decomposer as mod
 
         # First call returns duplicates; critique call returns deduped version
         monkeypatch.setattr(mod.llm, "invoke", self._make_responses(
@@ -73,8 +73,8 @@ class TestDecomposer:
         Fix v2: nodes return ["entry"] (plain list) for operator.add.
         reasoning_trace in node output should be exactly 1 new entry.
         """
-        from agents.p1_decomposer import decompose_query
-        import agents.p1_decomposer as mod
+        from agents.decomposer import decompose_query
+        import agents.decomposer as mod
 
         monkeypatch.setattr(mod.llm, "invoke", self._make_responses(
             '["Q1?", "Q2?"]',
@@ -98,8 +98,8 @@ class TestDecomposer:
 
 class TestSearchAgent:
     def test_output_keys_present(self, monkeypatch):
-        from agents.p2_search import search_agent
-        import agents.p2_search as mod
+        from agents.search import search_agent
+        import agents.search as mod
 
         monkeypatch.setattr(mod.web_search, "invoke", lambda inputs: [
             {"url": f"https://example{i}.com/", "title": f"Result {i}",
@@ -118,8 +118,8 @@ class TestSearchAgent:
 
     def test_deduplication(self, monkeypatch):
         """Duplicate URLs must not appear in search_results."""
-        from agents.p2_search import search_agent
-        import agents.p2_search as mod
+        from agents.search import search_agent
+        import agents.search as mod
 
         monkeypatch.setattr(mod.web_search, "invoke", lambda inputs: [
             {"url": "https://same.com/page", "title": "Same",
@@ -139,8 +139,8 @@ class TestSearchAgent:
 
     def test_trace_is_list(self, monkeypatch):
         """reasoning_trace returned by node must be a plain list."""
-        from agents.p2_search import search_agent
-        import agents.p2_search as mod
+        from agents.search import search_agent
+        import agents.search as mod
 
         monkeypatch.setattr(mod.web_search, "invoke", lambda inputs: [])
         monkeypatch.setattr(mod.llm, "invoke",
@@ -186,13 +186,13 @@ class TestRetriever:
         class FakeReranker:
             def predict(self, pairs): return [0.9 - i * 0.01 for i in range(len(pairs))]
 
-        import agents.p3_retriever as mod
+        import agents.retriever as mod
         monkeypatch.setattr(mod, "EMBEDDER", FakeEmbedder())
         monkeypatch.setattr(mod, "RERANKER", FakeReranker())
         monkeypatch.setattr(mod, "qdrant", FakeQdrant())
 
     def test_max_5_passages(self, monkeypatch):
-        from agents.p3_retriever import retrieve_passages
+        from agents.retriever import retrieve_passages
         self._mock_p3(monkeypatch)
 
         state = mock_state()
@@ -200,7 +200,7 @@ class TestRetriever:
         assert len(result["retrieved_passages"]) <= 5
 
     def test_passage_schema(self, monkeypatch):
-        from agents.p3_retriever import retrieve_passages
+        from agents.retriever import retrieve_passages
         self._mock_p3(monkeypatch)
 
         state = mock_state()
@@ -210,7 +210,7 @@ class TestRetriever:
                 assert key in p, f"Missing key '{key}' in passage"
 
     def test_trace_is_list(self, monkeypatch):
-        from agents.p3_retriever import retrieve_passages
+        from agents.retriever import retrieve_passages
         self._mock_p3(monkeypatch)
 
         state = mock_state()
@@ -225,8 +225,8 @@ class TestRetriever:
 
 class TestConflictDetector:
     def test_no_conflict(self, monkeypatch):
-        from agents.p4_conflict import detect_conflicts
-        import agents.p4_conflict as mod
+        from agents.conflict import detect_conflicts
+        import agents.conflict as mod
 
         monkeypatch.setattr(mod.llm, "invoke", lambda msgs:
             type('R', (), {'content': '{"verdict":"agree","confidence":0.95,"explanation":"Both agree."}'})())
@@ -235,8 +235,8 @@ class TestConflictDetector:
         assert result["conflict_report"]["has_conflicts"] is False
 
     def test_conflict_detected(self, monkeypatch):
-        from agents.p4_conflict import detect_conflicts
-        import agents.p4_conflict as mod
+        from agents.conflict import detect_conflicts
+        import agents.conflict as mod
 
         monkeypatch.setattr(mod.llm, "invoke", lambda msgs:
             type('R', (), {'content': '{"verdict":"contradict","confidence":0.90,"explanation":"They disagree."}'})())
@@ -246,8 +246,8 @@ class TestConflictDetector:
         assert len(result["conflict_report"]["pairs"]) >= 1
 
     def test_low_confidence_ignored(self, monkeypatch):
-        from agents.p4_conflict import detect_conflicts
-        import agents.p4_conflict as mod
+        from agents.conflict import detect_conflicts
+        import agents.conflict as mod
 
         monkeypatch.setattr(mod.llm, "invoke", lambda msgs:
             type('R', (), {'content': '{"verdict":"contradict","confidence":0.50,"explanation":"Maybe."}'})())
@@ -256,8 +256,8 @@ class TestConflictDetector:
         assert result["conflict_report"]["has_conflicts"] is False
 
     def test_trace_is_list(self, monkeypatch):
-        from agents.p4_conflict import detect_conflicts
-        import agents.p4_conflict as mod
+        from agents.conflict import detect_conflicts
+        import agents.conflict as mod
 
         monkeypatch.setattr(mod.llm, "invoke", lambda msgs:
             type('R', (), {'content': '{"verdict":"agree","confidence":0.9,"explanation":"OK."}'})())
@@ -273,13 +273,13 @@ class TestConflictDetector:
 
 class TestRouter:
     def test_routes_normal(self):
-        from agents.p4_conflict import route_on_conflict
+        from agents.conflict import route_on_conflict
         state = mock_state()
         state["conflict_report"] = ConflictReport(has_conflicts=False, pairs=[])
         assert route_on_conflict(state) == "synthesize_normal"
 
     def test_routes_warning(self):
-        from agents.p4_conflict import route_on_conflict
+        from agents.conflict import route_on_conflict
         state = mock_state()
         state["conflict_report"] = ConflictReport(has_conflicts=True, pairs=[])
         assert route_on_conflict(state) == "synthesize_warning"
@@ -291,7 +291,7 @@ class TestRouter:
 
 class TestSynthesizer:
     def _mock_p5(self, monkeypatch, report="## Report\n\nFinding [Source 1]."):
-        import agents.p5_synthesizer as mod
+        import agents.synthesizer as mod
 
         call_count = {"n": 0}
         def fake_invoke(messages):
@@ -305,7 +305,7 @@ class TestSynthesizer:
         monkeypatch.setattr(mod.llm_check, "invoke", fake_check)
 
     def test_output_keys_present(self, monkeypatch):
-        from agents.p5_synthesizer import synthesize_report
+        from agents.synthesizer import synthesize_report
         self._mock_p5(monkeypatch)
 
         result = synthesize_report(mock_state())
@@ -315,7 +315,7 @@ class TestSynthesizer:
         assert len(result["final_report"]) > 0
 
     def test_citations_match_passages(self, monkeypatch):
-        from agents.p5_synthesizer import synthesize_report
+        from agents.synthesizer import synthesize_report
         self._mock_p5(monkeypatch)
 
         state = mock_state()
@@ -323,7 +323,7 @@ class TestSynthesizer:
         assert len(result["citations"]) == len(state["retrieved_passages"])
 
     def test_trace_is_list(self, monkeypatch):
-        from agents.p5_synthesizer import synthesize_report
+        from agents.synthesizer import synthesize_report
         self._mock_p5(monkeypatch)
 
         result = synthesize_report(mock_state())
@@ -337,8 +337,8 @@ class TestSynthesizer:
 
 class TestEvaluator:
     def test_scores_dict_returned(self, monkeypatch):
-        from agents.p6_evaluator import evaluate_state
-        import agents.p6_evaluator as mod
+        from agents.evaluator import evaluate_state
+        import agents.evaluator as mod
 
         monkeypatch.setattr(mod.llm, "invoke",
                             lambda msgs: type('R', (), {'content': '5'})())
@@ -355,8 +355,8 @@ class TestEvaluator:
         assert "latency_seconds" in scores
 
     def test_zero_hallucination_for_clean_report(self, monkeypatch):
-        from agents.p6_evaluator import evaluate_state
-        import agents.p6_evaluator as mod
+        from agents.evaluator import evaluate_state
+        import agents.evaluator as mod
 
         monkeypatch.setattr(mod.llm, "invoke",
                             lambda msgs: type('R', (), {'content': '3'})())
