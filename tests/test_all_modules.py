@@ -180,7 +180,9 @@ class TestRetriever:
                 return C()
             def create_collection(self, **kw): pass
             def upsert(self, **kw): pass
-            def search(self, **kw): return [FakeHit(i) for i in range(8)]
+            def query_points(self, **kw):
+                class R: points = [FakeHit(i) for i in range(8)]
+                return R()
             def delete_collection(self, *a): pass
 
         class FakeReranker:
