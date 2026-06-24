@@ -17,7 +17,7 @@ build/
 venv/
 .venv/
 env/
-AutoSearchAgent/
+AutoSearchAgent_env/
 
 # IDE
 .vscode/
