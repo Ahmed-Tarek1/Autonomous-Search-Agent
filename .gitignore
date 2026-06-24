@@ -17,6 +17,7 @@ build/
 venv/
 .venv/
 env/
+AutoSearchAgent_env/
 
 # IDE
 .vscode/
@@ -28,6 +29,7 @@ env/
 .pytest_cache/
 .coverage
 htmlcov/
+test.py
 
 # LangSmith / LangChain cache
 .langchain.db
