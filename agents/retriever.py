@@ -1,5 +1,5 @@
 """
-agents/p3_retriever.py — Semantic Retriever
+agents/retriever.py — Semantic Retriever
 ============================================
 Owner: Person 3
 Reads:  state["search_results"], state["question"], state["sub_questions"]
@@ -12,7 +12,7 @@ Contract:
     LangGraph appends via operator.add.
 
 Run in isolation:
-    python agents/p3_retriever.py
+    python agents/retriever.py
 """
 
 from state import ResearchState, Passage, mock_state

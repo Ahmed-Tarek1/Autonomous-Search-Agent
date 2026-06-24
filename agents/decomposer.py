@@ -1,7 +1,6 @@
 """
-agents/p1_decomposer.py — Query Decomposer + Orchestrator
+agents/decomposer.py — Query Decomposer + Orchestrator
 ==========================================================
-Owner: Person 1
 Reads:  state["question"]
 Writes: state["sub_questions"], state["reasoning_trace"]
 
@@ -11,7 +10,7 @@ Contract:
     LangGraph appends it via the operator.add reducer in state.py.
 
 Run in isolation:
-    python agents/p1_decomposer.py
+    python agents/decomposer.py
 """
 
 from state import ResearchState, mock_state

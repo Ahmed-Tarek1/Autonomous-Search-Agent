@@ -1,7 +1,6 @@
 """
-agents/p6_evaluator.py — Evaluator
+agents/evaluator.py — Evaluator
 ====================================
-Owner: Person 6
 Runs OUTSIDE the LangGraph graph — takes final state as input.
 
 Contract:
@@ -15,11 +14,11 @@ Contract:
     — this signature must stay stable.
 
 Usage:
-    from agents.p6_evaluator import evaluate_state
+    from agents.evaluator import evaluate_state
     scores = evaluate_state(final_state, latency_seconds=12.5)
 
 Run benchmark suite:
-    python agents/p6_evaluator.py
+    python agents/evaluator.py
 """
 
 from typing import Optional

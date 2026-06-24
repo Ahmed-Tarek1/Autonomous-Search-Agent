@@ -1,7 +1,6 @@
 """
-agents/p5_synthesizer.py — Synthesizer + Report Generator
+agents/synthesizer.py — Synthesizer + Report Generator
 ==========================================================
-Owner: Person 5
 Reads:  state["question"], state["retrieved_passages"], state["conflict_report"]
 Writes: state["final_report"], state["citations"], state["unverified_claims"]
 
@@ -14,7 +13,7 @@ Contract:
     LangGraph appends via operator.add.
 
 Run in isolation:
-    python agents/p5_synthesizer.py
+    python agents/synthesizer.py
 """
 
 from state import ResearchState, mock_state
