@@ -21,9 +21,41 @@ Run benchmark suite:
     python agents/evaluator.py
 """
 
+import os
+import re
+import sys
 from typing import Optional
+
+import numpy as np
+from datasets import Dataset
+from dotenv import load_dotenv
+from langchain_groq import ChatGroq
+from langchain_huggingface import HuggingFaceEmbeddings
+from ragas import evaluate
+from ragas.embeddings import LangchainEmbeddingsWrapper
+from ragas.llms import LangchainLLMWrapper
+from ragas.metrics import AnswerRelevancy, Faithfulness
+
+# --- path fix so this runs from anywhere ---
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from state import ResearchState, mock_state
 
+load_dotenv()
+
+# ---------------------------------------------------------------------------
+# Shared judge LLM + embeddings (initialised once at import time)
+# ---------------------------------------------------------------------------
+judge_llm = LangchainLLMWrapper(
+    ChatGroq(model="llama-3.3-70b-versatile")
+)
+
+judge_embeddings = LangchainEmbeddingsWrapper(
+    HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+)
+
+# ---------------------------------------------------------------------------
+# Benchmark questions
+# ---------------------------------------------------------------------------
 BENCHMARK_QUESTIONS = [
     "What are the health effects of intermittent fasting?",
     "Does coffee improve cognitive performance?",
@@ -33,45 +65,129 @@ BENCHMARK_QUESTIONS = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# Core helpers
+# ---------------------------------------------------------------------------
+
+def compute_ragas_scores(state: ResearchState) -> dict:
+    """
+    Run RAGAS faithfulness + answer_relevancy on the final state.
+    Returns None values if report/passages are missing or RAGAS fails.
+    """
+    try:
+        if not state.get("final_report") or not state.get("retrieved_passages"):
+            print("[P6] Warning: empty report or passages — skipping RAGAS")
+            return {"faithfulness": None, "answer_relevancy": None}
+
+        data = Dataset.from_dict({
+            "question": [state["question"]],
+            "answer":   [state["final_report"]],
+            "contexts": [[p["text"] for p in state["retrieved_passages"]]],
+        })
+
+        faith_metric = Faithfulness(llm=judge_llm)
+        relevancy_metric = AnswerRelevancy(llm=judge_llm, embeddings=judge_embeddings)
+
+        result = evaluate(data, metrics=[faith_metric, relevancy_metric])
+        df = result.to_pandas()
+
+        return {
+            "faithfulness":     round(float(df["faithfulness"][0]), 3),
+            "answer_relevancy": round(float(df["answer_relevancy"][0]), 3),
+        }
+
+    except Exception as e:
+        print(f"[P6] RAGAS error: {e}")
+        return {"faithfulness": None, "answer_relevancy": None}
+
+
+def compute_hallucination_rate(state: ResearchState) -> float:
+    """
+    hallucination_rate = unverified_claims / total content sentences.
+    Returns 0.0 if report is empty or no unverified claims exist.
+    """
+    unverified = len(state.get("unverified_claims", []))
+    report     = state.get("final_report", "")
+
+    if not report or unverified == 0:
+        return 0.0
+
+    sentences = re.split(r'(?<=[.!?])\s+', report.strip())
+    content_sentences = [
+        s for s in sentences
+        if s and not s.startswith("#") and not s.startswith("[")
+    ]
+    total_claims = max(len(content_sentences), 1)
+    return round(unverified / total_claims, 3)
+
+
+# ---------------------------------------------------------------------------
+# Public API — called by pipeline.py
+# ---------------------------------------------------------------------------
+
 def evaluate_state(
     state: ResearchState,
     latency_seconds: Optional[float] = None,
 ) -> dict:
     """
-    TODO (Person 6): Implement real evaluation.
-    - compute_ragas_scores(state): run RAGAS faithfulness + answer_relevancy
-      (wrap in try/except — returns None values if ragas not installed)
-    - compute_hallucination_rate(state): call LLM to count total claims,
-      divide len(unverified_claims) by that count
-    - Return all 7 keys in the dict below — pipeline.py and tests depend on them
+    Main entry point. Returns all 7 evaluation keys.
+    pipeline.py signature must stay stable.
     """
-    # Mock output so pipeline runs end-to-end from Day 1
-    return {
-        "faithfulness": None,
-        "answer_relevancy": None,
-        "hallucination_rate": 0.0,
+    ragas_scores  = compute_ragas_scores(state)
+    hallucination = compute_hallucination_rate(state)
+
+    result = {
+        "faithfulness":           ragas_scores["faithfulness"],
+        "answer_relevancy":       ragas_scores["answer_relevancy"],
+        "hallucination_rate":     hallucination,
         "unverified_claim_count": len(state.get("unverified_claims", [])),
-        "source_count": len(state.get("retrieved_passages", [])),
-        "report_length_chars": len(state.get("final_report", "")),
-        "latency_seconds": latency_seconds,
+        "source_count":           len(state.get("retrieved_passages", [])),
+        "report_length_chars":    len(state.get("final_report", "")),
+        "latency_seconds":        latency_seconds,
     }
+
+    print("[P6] Eval scores:")
+    for k, v in result.items():
+        print(f"     {k}: {v}")
+
+    return result
 
 
 def run_benchmark(pipeline_fn, n_runs: int = 3):
     """
-    TODO (Person 6): Implement benchmark runner.
-    - For each question in BENCHMARK_QUESTIONS, run pipeline_fn n_runs times
-    - Call evaluate_state on each result
-    - Print mean ± std for faithfulness, answer_relevancy,
-      hallucination_rate, latency_seconds
+    Run all 5 benchmark questions n_runs times each.
+    Prints mean ± std for faithfulness, answer_relevancy,
+    hallucination_rate, and latency_seconds.
     """
-    print("[P6] STUB — benchmark runner not yet implemented")
-    for q in BENCHMARK_QUESTIONS:
-        print(f"  Would run: {q}")
+    import time
+
+    metrics = ["faithfulness", "answer_relevancy", "hallucination_rate", "latency_seconds"]
+    all_results = {m: [] for m in metrics}
+
+    for question in BENCHMARK_QUESTIONS:
+        print(f"\n[P6] Benchmarking: {question}")
+        for run in range(n_runs):
+            start = time.time()
+            final_state = pipeline_fn({"question": question})
+            latency = round(time.time() - start, 2)
+
+            scores = evaluate_state(final_state, latency_seconds=latency)
+            for m in metrics:
+                val = scores.get(m)
+                if val is not None:
+                    all_results[m].append(val)
+
+    print("\n[P6] === Benchmark Results ===")
+    for m in metrics:
+        vals = all_results[m]
+        if vals:
+            print(f"  {m}: {np.mean(vals):.3f} ± {np.std(vals):.3f}")
+        else:
+            print(f"  {m}: N/A")
 
 
 # ---------------------------------------------------------------------------
-# Local test
+# Local test — python agents/p6_evaluator.py
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
     import json
@@ -88,4 +204,5 @@ if __name__ == "__main__":
     state["unverified_claims"] = []
 
     scores = evaluate_state(state, latency_seconds=12.5)
-    print("Scores:", json.dumps(scores, indent=2))
+    print("\nFinal JSON:")
+    print(json.dumps(scores, indent=2))
