@@ -17,20 +17,47 @@ Run in isolation:
 """
 
 # pyrefly: ignore [missing-import]
+import os
+import sys
+
+# sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from state import ResearchState, mock_state
 import json
 from typing import List, Dict, Any
-import os
-import sys
+
+import yaml
+
+# pyrefly: ignore [missing-import]
 from dotenv import load_dotenv
+
+# pyrefly: ignore [missing-import]
 from langchain_groq import ChatGroq
+
+# pyrefly: ignore [missing-import]
 from langchain_core.messages import SystemMessage, HumanMessage
 
+# pyrefly: ignore [missing-import]
+from prompts.synthesizer_prompts import (
+    SYNTHESIS_SYSTEM_BASE,
+    SYNTHESIS_SYSTEM_CONFLICT,
+    SELF_CHECK_SYSTEM,
+)
 
-load_dotenv()
+
+def load_variables():
+    file = open("./shared_config.yaml")
+    configs = yaml.safe_load(file)
+    file.close()
+    load_dotenv()
+
+    return configs
+
+
+configs = load_variables()
 
 llm = ChatGroq(
-    model="openai/gpt-oss-120b",
+    model=configs["MAIN_MODEL"],
     temperature=0.2,
     groq_api_key=os.environ.get("GROQ_API_KEY", "mock-key"),
 )
@@ -41,36 +68,6 @@ llm_json = ChatGroq(
     groq_api_key=os.environ.get("GROQ_API_KEY", "mock-key"),
 ).bind(response_format={"type": "json_object"})
 
-# ---------------------------------------------------------------------------
-# Prompts Definition
-# ---------------------------------------------------------------------------
-SYNTHESIS_SYSTEM_BASE = """You are an expert research synthesizer. 
-Your task is to write a comprehensive, professionally structured Markdown report that directly answers the user's question based ONLY on the provided factual passages.
-
-Rules:
-1. Every factual claim you make MUST be immediately followed by an inline citation referencing its source number, formatted exactly as [Source N] (e.g., [Source 1], [Source 2]).
-2. NEVER synthesize or assume any facts that are not explicitly stated in the provided passages.
-3. Structure your response using clear Markdown headers (##).
-4. Do NOT include a final "Sources" or bibliography section inside the report body; the backend will append that automatically from the metadata.
-5. CRITICAL: Do NOT write any generic introductory or concluding sentences unless they are strictly derived from and cited with a [Source N]. Every single sentence in the report body must have a citation.
-"""
-
-SYNTHESIS_SYSTEM_CONFLICT = (
-    SYNTHESIS_SYSTEM_BASE
-    + """
-6. CRITICAL: A conflict has been detected in the source materials. You MUST include a dedicated section titled "## Conflicting Evidence" early in the report. In this section, explicitly analyze the detected contradictions, explaining which sources disagree and what points they dispute based on the provided conflict details.
-"""
-)
-
-SELF_CHECK_SYSTEM = """You are a rigorous factual auditor. Your job is to read a generated research report and identify any factual claims that lack an explicit inline citation (e.g., claims missing a [Source N] tag).
-
-You must return your response as a strict JSON object containing a single array of strings under the key "unverified_claims". Each string should be a specific claim from the text that is un-cited. If all claims are properly cited, return an empty array.
-
-Example Output format:
-{
-  "unverified_claims": ["The study found a 20% increase in baseline metabolic rates.", "Long-term effects include potential vitamin deficiency."]
-}
-"""
 
 # ---------------------------------------------------------------------------
 # Core Logic Node
@@ -163,29 +160,29 @@ if __name__ == "__main__":
         print("Please run: export GROQ_API_KEY='your_key' or put it in .env")
         sys.exit(1)
 
-    # -----------------------------------------------------------------------
-    # TEST CASE 1: Normal Path (No Conflicts)
-    # -----------------------------------------------------------------------
-    print("\n▶️ [TEST 1/2] Running Normal Path (Happy Path)...")
-    try:
-        state_normal = mock_state()
-        result_normal = synthesize_report(state_normal)
+    # # -----------------------------------------------------------------------
+    # # TEST CASE 1: Normal Path (No Conflicts)
+    # # -----------------------------------------------------------------------
+    # print("\n▶️ [TEST 1/2] Running Normal Path (Happy Path)...")
+    # try:
+    #     state_normal = mock_state()
+    #     result_normal = synthesize_report(state_normal)
 
-        print("\n✅ TEST 1 SUCCESS!")
-        print("=== FINAL REPORT (NORMAL) ===")
-        print(result_normal["final_report"])
-        print("\n=== CITATIONS ===")
-        for c in result_normal["citations"]:
-            print(f"  {c}")
-        print(
-            f"\n=== UNVERIFIED CLAIMS ({len(result_normal['unverified_claims'])}) ==="
-        )
-        for claim in result_normal["unverified_claims"]:
-            print(f"  - {claim}")
-        print("\nTrace Appended:", result_normal["reasoning_trace"])
+    #     print("\n✅ TEST 1 SUCCESS!")
+    #     print("=== FINAL REPORT (NORMAL) ===")
+    #     print(result_normal["final_report"])
+    #     print("\n=== CITATIONS ===")
+    #     for c in result_normal["citations"]:
+    #         print(f"  {c}")
+    #     print(
+    #         f"\n=== UNVERIFIED CLAIMS ({len(result_normal['unverified_claims'])}) ==="
+    #     )
+    #     for claim in result_normal["unverified_claims"]:
+    #         print(f"  - {claim}")
+    #     print("\nTrace Appended:", result_normal["reasoning_trace"])
 
-    except Exception as e:
-        print(f"❌ TEST 1 FAILED: {e}")
+    # except Exception as e:
+    #     print(f"❌ TEST 1 FAILED: {e}")
 
     print("\n" + "=" * 60 + "\n")
 
