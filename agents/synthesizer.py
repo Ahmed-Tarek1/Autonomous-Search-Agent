@@ -31,6 +31,8 @@ import yaml
 # pyrefly: ignore [missing-import]
 from dotenv import load_dotenv
 
+load_dotenv()
+
 # pyrefly: ignore [missing-import]
 from langchain_groq import ChatGroq
 
@@ -49,7 +51,6 @@ def load_variables():
     file = open("./shared_config.yaml")
     configs = yaml.safe_load(file)
     file.close()
-    load_dotenv()
 
     return configs
 

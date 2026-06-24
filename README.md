@@ -104,6 +104,23 @@ export $(cat .env | xargs)
 # Or use python-dotenv — already imported in each agent file
 ```
 
+### 4. Enable LangSmith tracing
+
+Add these to your `.env` before running the app:
+
+```bash
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_API_KEY=ls__...
+LANGCHAIN_PROJECT=research-assistant
+LANGCHAIN_ENDPOINT=https://api.smith.langchain.com
+```
+
+Then install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
 ---
 
 ## Running
