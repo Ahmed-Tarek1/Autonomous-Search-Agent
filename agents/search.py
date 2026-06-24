@@ -19,6 +19,9 @@ from pathlib import Path
 from typing import List
 from urllib.parse import urlparse
 
+import yaml
+from dotenv import load_dotenv
+
 from langchain_groq import ChatGroq
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.tools import tool
@@ -27,18 +30,30 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from state import ResearchState, SearchResult, mock_state
 
+
+def load_variables():
+    config_path = Path(__file__).resolve().parent.parent / "shared_config.yaml"
+    with open(config_path, "r") as file:
+        configs = yaml.safe_load(file)
+    load_dotenv()
+    return configs
+
+
+configs = load_variables()
+
 # ---------------------------------------------------------------------------
 # LLM client
 # ---------------------------------------------------------------------------
 llm = ChatGroq(
-    model="openai/gpt-oss-120b",
-    temperature=0,
+    model=configs["MAIN_MODEL"],
+    temperature=configs["SEARCH_TEMPERATURE"],
     api_key=os.getenv("GROQ_API_KEY", ""),
 )
 
-MAX_ITERATIONS = 5
-MIN_SOURCES = 3
-MIN_DOMAINS = 2
+MAX_ITERATIONS = configs["MAX_ITERATIONS"]
+MIN_SOURCES = configs["MIN_SOURCES"]
+MIN_DOMAINS = configs["MIN_DOMAINS"]
+TAVILY_MAX_RESULTS = configs["TAVILY_MAX_RESULTS"]
 
 # ---------------------------------------------------------------------------
 # Tool — Tavily client
@@ -50,7 +65,7 @@ def web_search(query: str) -> List[dict]:
     try:
         from tavily import TavilyClient
         client = TavilyClient(api_key=os.getenv("TAVILY_API_KEY", ""))
-        response = client.search(query, max_results=5)
+        response = client.search(query, max_results=TAVILY_MAX_RESULTS)
         return [
             {
                 "url": r["url"],
@@ -65,16 +80,7 @@ def web_search(query: str) -> List[dict]:
         return []
     
 
-REACT_SYSTEM = """You are a search agent operating in a ReAct loop.
-For each step you receive:
-- The sub-question you are researching
-- The results found so far (count and domains)
-
-Respond with exactly one of:
-- STOP  (if you have >= {min_sources} results from >= {min_domains} different domains)
-- SEARCH: <your refined query>  (to run another search)
-
-No explanation. No other text.""".format(
+REACT_SYSTEM = configs["REACT_SYSTEM"].format(
     min_sources=MIN_SOURCES, min_domains=MIN_DOMAINS
 )
 
