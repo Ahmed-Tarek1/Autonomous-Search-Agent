@@ -20,38 +20,25 @@ Takes a research question, autonomously searches the web, retrieves and ranks pa
 User question
      │
      ▼
-[P1] Query decomposer      → 3–5 focused sub-questions
+Query decomposer      → 3–5 focused sub-questions
      │
      ▼
-[P2] Search agent          → ReAct loop (Tavily), deduplicated results
+Search agent          → ReAct loop (Tavily), deduplicated results
      │
      ▼
-[P3] Semantic retriever    → Qdrant + MiniLM + cross-encoder re-ranking
+Semantic retriever    → Qdrant + MiniLM + cross-encoder re-ranking
      │
      ▼
-[P4] Conflict detector     → few-shot LLM classification of source pairs
+Conflict detector     → few-shot LLM classification of source pairs
      │
-     ├── no conflict  ──► [P5a] synthesize_normal
-     └── conflict     ──► [P5b] synthesize_with_warning
+     ├── no conflict  ──► synthesize_normal
+     └── conflict     ──► ynthesize_with_warning
                                │
                                ▼
-                          [P6] Evaluator  (RAGAS + hallucination rate)
+                          Evaluator  (RAGAS + hallucination rate)
 ```
 
 **Stack:** LangGraph · Claude (Anthropic) · Tavily · Qdrant · sentence-transformers · RAGAS · FastAPI · Streamlit
-
----
-
-## Team & module ownership
-
-| Person | Module | File |
-|---|---|---|
-| **P1** | Query decomposer + pipeline orchestrator | `agents/decomposer.py` + `pipeline.py` |
-| **P2** | Search agent (ReAct loop) | `agents/search.py` |
-| **P3** | Semantic retriever (Qdrant + cross-encoder) | `agents/retriever.py` |
-| **P4** | Conflict detector (few-shot classification) | `agents/conflict.py` |
-| **P5** | Synthesizer + FastAPI backend + Streamlit UI | `agents/synthesizer.py` + `main.py` + `ui/app.py` |
-| **P6** | Evaluator (RAGAS + hallucination rate) | `agents/evaluator.py` |
 
 ---
 
@@ -108,16 +95,6 @@ cp .env.example .env
 
 Open `.env` and fill in:
 
-| Key | Where to get it |
-|---|---|
-| `ANTHROPIC_API_KEY` | https://console.anthropic.com |
-| `TAVILY_API_KEY` | https://tavily.com (free tier: 1000 req/month) |
-| `QDRANT_URL` | https://cloud.qdrant.io (free tier: 1 cluster, 1GB) |
-| `QDRANT_API_KEY` | Qdrant cloud dashboard |
-| `LANGCHAIN_API_KEY` | https://smith.langchain.com (optional but recommended) |
-
-> **One person (P1) sets up the keys and shares the `.env` file with the team via a secure channel (not Git).**
-
 ### 3. Load environment variables
 
 ```bash
@@ -172,23 +149,7 @@ pytest tests/ -v
 
 ---
 
-## Day-by-day plan
-
-| Day | Focus | Owner |
-|---|---|---|
-| **1** | Lock `ResearchState` schema, set up repo, all stubs running with mock input | P1 leads |
-| **2** | Each person builds their real LLM module in isolation, unit tests passing | Individual |
-| **3** | P1 wires the graph, first end-to-end run, integration debugging | P1 leads |
-| **4** | Quality improvements per module, conflict demo question identified | Individual |
-| **5** | Streaming UI, reasoning trace display, full eval suite on 5 benchmark Qs | P5, P6 |
-| **6** | Demo rehearsal ×3, caching, hardening, presentation slides | All |
-| **7** | Demo day | All |
-
----
-
 ## Shared state contract
-
-> **Do not change `state.py` after Day 1 without syncing the whole team.**
 
 ```python
 class ResearchState(TypedDict):
@@ -264,5 +225,3 @@ git push origin feat/p2-search-agent
 ```
 
 Branch naming: `feat/p{N}-{module-name}` (e.g. `feat/p4-conflict-detector`)
-
-> **Never push directly to `main`. P1 reviews and merges all PRs on integration day (Day 3).**
