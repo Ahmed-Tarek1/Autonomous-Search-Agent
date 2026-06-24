@@ -1,7 +1,6 @@
 """
-agents/p2_search.py — Search Agent (ReAct loop)
+agents/search.py — Search Agent (ReAct loop)
 ================================================
-Owner: Person 2
 Reads:  state["sub_questions"], state["question"]
 Writes: state["search_results"], state["reasoning_trace"]
 
@@ -12,8 +11,15 @@ Contract:
     LangGraph appends via operator.add.
 
 Run in isolation:
-    python agents/p2_search.py
+    python agents/search.py
 """
+import os
+from typing import List
+from urllib.parse import urlparse
+
+from langchain_anthropic import ChatAnthropic
+from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.tools import tool
 
 from state import ResearchState, SearchResult, mock_state
 

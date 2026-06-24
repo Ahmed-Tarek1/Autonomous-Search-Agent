@@ -46,12 +46,12 @@ User question
 
 | Person | Module | File |
 |---|---|---|
-| **P1** | Query decomposer + pipeline orchestrator | `agents/p1_decomposer.py` + `pipeline.py` |
-| **P2** | Search agent (ReAct loop) | `agents/p2_search.py` |
-| **P3** | Semantic retriever (Qdrant + cross-encoder) | `agents/p3_retriever.py` |
-| **P4** | Conflict detector (few-shot classification) | `agents/p4_conflict.py` |
-| **P5** | Synthesizer + FastAPI backend + Streamlit UI | `agents/p5_synthesizer.py` + `main.py` + `ui/app.py` |
-| **P6** | Evaluator (RAGAS + hallucination rate) | `agents/p6_evaluator.py` |
+| **P1** | Query decomposer + pipeline orchestrator | `agents/decomposer.py` + `pipeline.py` |
+| **P2** | Search agent (ReAct loop) | `agents/search.py` |
+| **P3** | Semantic retriever (Qdrant + cross-encoder) | `agents/retriever.py` |
+| **P4** | Conflict detector (few-shot classification) | `agents/conflict.py` |
+| **P5** | Synthesizer + FastAPI backend + Streamlit UI | `agents/synthesizer.py` + `main.py` + `ui/app.py` |
+| **P6** | Evaluator (RAGAS + hallucination rate) | `agents/evaluator.py` |
 
 ---
 
@@ -65,12 +65,12 @@ research_assistant/
 │
 ├── agents/
 │   ├── __init__.py
-│   ├── p1_decomposer.py      # Query decomposer
-│   ├── p2_search.py          # Search agent (ReAct)
-│   ├── p3_retriever.py       # Semantic retriever
-│   ├── p4_conflict.py        # Conflict detector + router
-│   ├── p5_synthesizer.py     # Report synthesizer
-│   └── p6_evaluator.py       # RAGAS evaluation suite
+│   ├── decomposer.py      # Query decomposer
+│   ├── search.py          # Search agent (ReAct)
+│   ├── retriever.py       # Semantic retriever
+│   ├── conflict.py        # Conflict detector + router
+│   ├── synthesizer.py     # Report synthesizer
+│   └── evaluator.py       # RAGAS evaluation suite
 │
 ├── ui/
 │   └── app.py                # Streamlit demo UI
@@ -141,12 +141,12 @@ python pipeline.py
 
 ```bash
 # Each agent file has a __main__ block for isolated testing
-python agents/p1_decomposer.py
-python agents/p2_search.py
-python agents/p3_retriever.py
-python agents/p4_conflict.py
-python agents/p5_synthesizer.py
-python agents/p6_evaluator.py
+python agents/decomposer.py
+python agents/search.py
+python agents/retriever.py
+python agents/conflict.py
+python agents/synthesizer.py
+python agents/evaluator.py
 ```
 
 ### Run the FastAPI backend
