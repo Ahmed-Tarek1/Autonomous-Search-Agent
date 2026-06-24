@@ -3,8 +3,6 @@ langgraph>=0.2.0
 langchain>=0.3.0
 langchain-core>=0.3.0
 
-langchain-groq>=1.1.2
-
 # ── LLM providers ─────────────────────────────────────────────────────────
 langchain-groq>=0.2.0
 
