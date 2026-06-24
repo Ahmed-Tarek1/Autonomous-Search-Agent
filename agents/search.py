@@ -1,7 +1,6 @@
 """
-agents/p2_search.py — Search Agent (ReAct loop)
+agents/search.py — Search Agent (ReAct loop)
 ================================================
-Owner: Person 2
 Reads:  state["sub_questions"], state["question"]
 Writes: state["search_results"], state["reasoning_trace"]
 
@@ -12,27 +11,137 @@ Contract:
     LangGraph appends via operator.add.
 
 Run in isolation:
-    python agents/p2_search.py
+    python agents/search.py
 """
+import os
+import sys
+from pathlib import Path
+from typing import List
+from urllib.parse import urlparse
+
+from langchain_groq import ChatGroq
+from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.tools import tool
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from state import ResearchState, SearchResult, mock_state
+
+# ---------------------------------------------------------------------------
+# LLM client
+# ---------------------------------------------------------------------------
+llm = ChatGroq(
+    model="openai/gpt-oss-120b",
+    temperature=0,
+    api_key=os.getenv("GROQ_API_KEY", ""),
+)
+
+MAX_ITERATIONS = 5
+MIN_SOURCES = 3
+MIN_DOMAINS = 2
+
+# ---------------------------------------------------------------------------
+# Tool — Tavily client
+# ---------------------------------------------------------------------------
+
+@tool
+def web_search(query: str) -> List[dict]:
+    """Search the web for information. Returns title, url, and snippet per result."""
+    try:
+        from tavily import TavilyClient
+        client = TavilyClient(api_key=os.getenv("TAVILY_API_KEY", ""))
+        response = client.search(query, max_results=5)
+        return [
+            {
+                "url": r["url"],
+                "title": r["title"],
+                "snippet": r.get("content", ""),
+                "source": urlparse(r["url"]).netloc,
+            }
+            for r in response.get("results", [])
+        ]
+    except Exception as e:
+        print(f"  [search error] {e}")
+        return []
+    
+
+REACT_SYSTEM = """You are a search agent operating in a ReAct loop.
+For each step you receive:
+- The sub-question you are researching
+- The results found so far (count and domains)
+
+Respond with exactly one of:
+- STOP  (if you have >= {min_sources} results from >= {min_domains} different domains)
+- SEARCH: <your refined query>  (to run another search)
+
+No explanation. No other text.""".format(
+    min_sources=MIN_SOURCES, min_domains=MIN_DOMAINS
+)
+
+
+def _react_loop(sub_question: str) -> List[SearchResult]:
+    """Run a ReAct loop for a single sub-question. Returns search results."""
+    all_results: List[SearchResult] = []
+    query = sub_question
+
+    for iteration in range(MAX_ITERATIONS):
+        print(f"    [iter {iteration + 1}] query: {query}")
+        raw = web_search.invoke({"query": query})
+
+        for r in raw:
+            if not any(x["url"] == r["url"] for x in all_results):
+                all_results.append(SearchResult(**r))
+
+        domains = {r["source"] for r in all_results}
+        stopping_prompt = (
+            f"Sub-question: {sub_question}\n"
+            f"Results so far: {len(all_results)} from domains: {list(domains)}"
+        )
+
+        decision = llm.invoke([
+            SystemMessage(content=REACT_SYSTEM),
+            HumanMessage(content=stopping_prompt),
+        ]).content.strip()
+
+        print(f"    [decision] {decision}")
+
+        if decision.upper() == "STOP":
+            break
+        if decision.upper().startswith("SEARCH:"):
+            query = decision[7:].strip()
+        else:
+            print(f"    [warn] unrecognized decision, stopping early: {decision!r}")
+            break
+
+    return all_results
 
 
 def search_agent(state: ResearchState) -> ResearchState:
     """
-    TODO (Person 2): Implement ReAct loop using Tavily.
-    - For each sub-question, run a search loop (max 3 iterations):
-        1. Call web_search tool (Tavily, max_results=5)
-        2. Deduplicate by URL across all sub-questions
-        3. Ask LLM: STOP (if >= 3 results from >= 2 domains) or SEARCH: <refined query>
-    - Collect all results into a single deduplicated list
-    - Return one reasoning_trace entry per sub-question
+    LangGraph node: search_agent
+    Runs a ReAct search loop per sub-question, deduplicates, writes results.
     """
-    # Mock output so pipeline runs end-to-end from Day 1
+    all_results: List[SearchResult] = []
+    trace_entries = []
+
+    for sub_q in state["sub_questions"]:
+        print(f"Searching for: {sub_q}")
+        results = _react_loop(sub_q)
+        before = len(all_results)
+
+        for r in results:
+            if not any(x["url"] == r["url"] for x in all_results):
+                all_results.append(r)
+
+        added = len(all_results) - before
+        domains = {r["source"] for r in results}
+        trace_entries.append(
+            f"'{sub_q[:50]}...' → {added} new results from {list(domains)}"
+        )
+
     return {
-        **state,
-        "search_results": [],
-        "reasoning_trace": ["[P2] STUB — replace with real Tavily ReAct implementation"],
+        "search_results": all_results,
+        "reasoning_trace": trace_entries,
     }
 
 

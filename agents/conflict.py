@@ -1,7 +1,6 @@
 """
-agents/p4_conflict.py — Conflict Detector
+agents/conflict.py — Conflict Detector
 ==========================================
-Owner: Person 4
 Reads:  state["retrieved_passages"]
 Writes: state["conflict_report"], state["reasoning_trace"]
 
@@ -14,7 +13,7 @@ Contract:
   - route_on_conflict must remain in this file — pipeline.py imports it.
 
 Run in isolation:
-    python agents/p4_conflict.py
+    python agents/conflict.py
 """
 
 from state import ResearchState, ConflictReport, mock_state

@@ -29,6 +29,7 @@ AutoSearchAgent/
 .pytest_cache/
 .coverage
 htmlcov/
+test.py
 
 # LangSmith / LangChain cache
 .langchain.db
