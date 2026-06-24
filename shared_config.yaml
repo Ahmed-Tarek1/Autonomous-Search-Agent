@@ -1,7 +1,7 @@
 MAIN_MODEL: "openai/gpt-oss-120b"
 EMBEDDING_MODEL: "sentence-transformers/all-MiniLM-L6-v2"
 
-# P4 - Conflict Detector
+# Conflict Detector
 CONFLICT_CONFIDENCE_THRESHOLD: 0.75   # Min confidence to count a pair as a confirmed contradiction
 CONFLICT_SIMILARITY_THRESHOLD: 0.10   # Pairs below this cosine similarity are skipped (unrelated topics)
 CONFLICT_MAX_RETRIES: 3               # LLM call retries on transient failure
