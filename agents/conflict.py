@@ -193,29 +193,12 @@ async def _classify_pair_async(
 # ---------------------------------------------------------------------------
 
 def detect_conflicts(state: ResearchState) -> ResearchState:
-    """
-    P4 Conflict Detector - Pairwise LLM classification of retrieved passages.
-
-    Algorithm:
-    1. Generate all C(n,2) passage pairs
-    2. Pre-filter: skip pairs with cosine similarity < CONFLICT_SIMILARITY_THRESHOLD
-       (they are likely unrelated topics - saves LLM tokens)
-    3. Classify remaining pairs in parallel via asyncio
-    4. Keep only pairs where verdict=="contradict" AND confidence >= CONFLICT_CONFIDENCE_THRESHOLD
-    5. Assemble ConflictReport and return updated state
-
-    Agentic patterns:
-    - Few-shot prompting for reliable classification (loaded from conflict_prompt.py)
-    - Semantic pre-filtering (cheap heuristic before expensive LLM call)
-    - Parallel async LLM calls (speed optimization via asyncio.gather)
-    - Retry with exponential backoff (reliability)
-    """
+    """Classify all passage pairs for contradictions and return a ConflictReport."""
     passages = state["retrieved_passages"]
     n = len(passages)
 
     if n < 2:
         return {
-            **state,
             "conflict_report": ConflictReport(has_conflicts=False, pairs=[]),
             "reasoning_trace": ["[P4] Only 1 passage retrieved - no pairs to check."],
         }
@@ -237,7 +220,6 @@ def detect_conflicts(state: ResearchState) -> ResearchState:
 
     if not filtered_pairs:
         return {
-            **state,
             "conflict_report": ConflictReport(has_conflicts=False, pairs=[]),
             "reasoning_trace": [
                 f"[P4] Checked {total_pairs} pairs; all {skipped_count} skipped by "
@@ -305,7 +287,6 @@ def detect_conflicts(state: ResearchState) -> ResearchState:
     )
 
     return {
-        **state,
         "conflict_report": conflict_report,
         "reasoning_trace": [trace_entry],
     }
