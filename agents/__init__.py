@@ -1,7 +1,7 @@
 """
 agents package
 ==============
-Fix v2: Imports are explicit so teammates can import individual agents
+Imports are explicit so teammates can import individual agents
 without loading all LLM clients. Only import what you need.
 """
 from agents.decomposer import decompose_query
