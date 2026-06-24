@@ -28,6 +28,7 @@ env/
 .pytest_cache/
 .coverage
 htmlcov/
+test.py
 
 # LangSmith / LangChain cache
 .langchain.db
@@ -43,6 +44,3 @@ Thumbs.db
 # Outputs
 *.pdf
 reports/
-
-
-test.py
