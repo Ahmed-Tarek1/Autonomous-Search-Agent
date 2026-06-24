@@ -39,18 +39,27 @@ from ragas.metrics import AnswerRelevancy, Faithfulness
 # --- path fix so this runs from anywhere ---
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from state import ResearchState, mock_state
+import yaml
 
 load_dotenv()
+
+
+#read config.yaml file
+with open("shared_config.yaml", "r") as f:
+    config = yaml.safe_load(f)
+    
+MAIN_MODEL = config["MAIN_MODEL"]
+EMBEDDING_MODEL = config["EMBEDDING_MODEL"]
 
 # ---------------------------------------------------------------------------
 # Shared judge LLM + embeddings (initialised once at import time)
 # ---------------------------------------------------------------------------
 judge_llm = LangchainLLMWrapper(
-    ChatGroq(model="llama-3.3-70b-versatile")
+    ChatGroq(model=MAIN_MODEL)
 )
 
 judge_embeddings = LangchainEmbeddingsWrapper(
-    HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+    HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
 )
 
 # ---------------------------------------------------------------------------
@@ -63,8 +72,6 @@ BENCHMARK_QUESTIONS = [
     "What are the environmental impacts of electric vehicles?",
     "Is social media use linked to depression in teenagers?",
 ]
-
-
 # ---------------------------------------------------------------------------
 # Core helpers
 # ---------------------------------------------------------------------------
@@ -193,6 +200,7 @@ if __name__ == "__main__":
     import json
 
     state = mock_state()
+    state["question"] = "What causes the placebo effect?"
     state["final_report"] = (
         "## Intermittent Fasting and Health\n\n"
         "Research shows IF leads to 3-8% weight loss [Source 1]. "
