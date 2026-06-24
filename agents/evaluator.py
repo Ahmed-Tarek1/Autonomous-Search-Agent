@@ -29,6 +29,8 @@ from typing import Optional
 import numpy as np
 from datasets import Dataset
 from dotenv import load_dotenv
+load_dotenv()
+
 from langchain_groq import ChatGroq
 from langchain_huggingface import HuggingFaceEmbeddings
 from ragas import evaluate
@@ -40,8 +42,6 @@ from ragas.metrics import AnswerRelevancy, Faithfulness
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from state import ResearchState, mock_state
 import yaml
-
-load_dotenv()
 
 
 #read config.yaml file
