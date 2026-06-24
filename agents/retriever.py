@@ -1,7 +1,6 @@
 """
 agents/retriever.py — Semantic Retriever
 ============================================
-Owner: Person 3
 Reads:  state["search_results"], state["question"], state["sub_questions"]
 Writes: state["retrieved_passages"], state["reasoning_trace"]
 
