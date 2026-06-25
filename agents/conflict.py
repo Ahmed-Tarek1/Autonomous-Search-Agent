@@ -9,7 +9,7 @@ Contract:
   - conflict_report: ConflictReport {has_conflicts: bool, pairs: List[ConflictPair]}
   - ConflictPair: {passage_a, passage_b, verdict, confidence (0-1), explanation}
   - Only pairs with verdict=="contradict" AND confidence >= CONFLICT_CONFIDENCE_THRESHOLD are included
-  - reasoning_trace: plain List[str] with exactly 1 new entry ("[P4] ...")
+  - reasoning_trace: plain List[str] with exactly 1 new entry ("...")
     LangGraph appends via operator.add.
   - route_on_conflict must remain in this file - pipeline.py imports it.
 
@@ -200,7 +200,7 @@ def detect_conflicts(state: ResearchState) -> ResearchState:
     if n < 2:
         return {
             "conflict_report": ConflictReport(has_conflicts=False, pairs=[]),
-            "reasoning_trace": ["[P4] Only 1 passage retrieved - no pairs to check."],
+            "reasoning_trace": ["Only 1 passage retrieved - no pairs to check."],
         }
 
     # --- Step 1: Generate all C(n,2) pairs ---
@@ -222,7 +222,7 @@ def detect_conflicts(state: ResearchState) -> ResearchState:
         return {
             "conflict_report": ConflictReport(has_conflicts=False, pairs=[]),
             "reasoning_trace": [
-                f"[P4] Checked {total_pairs} pairs; all {skipped_count} skipped by "
+                f"Checked {total_pairs} pairs; all {skipped_count} skipped by "
                 f"semantic pre-filter (similarity < {CONFLICT_SIMILARITY_THRESHOLD}). "
                 f"No conflicts found."
             ],
@@ -278,7 +278,7 @@ def detect_conflicts(state: ResearchState) -> ResearchState:
         f"{all_verdicts.count('unrelated')} unrelated"
     )
     trace_entry = (
-        f"[P4] Checked {total_pairs} pairs "
+        f"Checked {total_pairs} pairs "
         f"({skipped_count} pre-filtered, {len(filtered_pairs)} sent to LLM). "
         f"Verdicts: {verdict_summary}. "
         f"Confirmed conflicts (>={CONFLICT_CONFIDENCE_THRESHOLD} confidence): "
@@ -308,7 +308,7 @@ def route_on_conflict(state: ResearchState) -> str:
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
     print("=" * 60)
-    print("P4 CONFLICT DETECTOR - Isolation Test")
+    print("CONFLICT DETECTOR - Isolation Test")
     print("=" * 60)
     print(f"Model:      {configs['MAIN_MODEL']}")
     print(f"Confidence threshold: {CONFLICT_CONFIDENCE_THRESHOLD}")
