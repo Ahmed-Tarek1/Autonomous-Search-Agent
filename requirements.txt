@@ -1,8 +1,17 @@
 # ── Core agent framework ──────────────────────────────────────────────────
 langgraph>=0.2.0
 langchain>=0.3.0
-langchain-core>=0.3.0
+langchain-community>=0.3.0
+langchain-google-vertexai>=2.0.0
+langchain-core>=0.3.49
 langsmith>=0.1.0
+langchain-groq==0.3.2
+ragas==0.2.6
+datasets
+langchain-huggingface
+sentence-transformers
+python-dotenv 
+numpy
 
 # ── LLM providers ─────────────────────────────────────────────────────────
 langchain-groq>=0.2.0
@@ -35,3 +44,6 @@ pytest-asyncio>=0.23.0
 
 # ── Utilities ─────────────────────────────────────────────────────────────
 python-dotenv>=1.0.0
+
+#reranker
+rank-bm25

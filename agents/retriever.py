@@ -152,7 +152,6 @@ def retrieve_passages(state: ResearchState) -> ResearchState:
 
     if not search_results:
         return {
-            **state,
             "retrieved_passages": [],
             "reasoning_trace": ["[P3] No search results to retrieve from."],
         }
@@ -170,7 +169,6 @@ def retrieve_passages(state: ResearchState) -> ResearchState:
 
     if not records:
         return {
-            **state,
             "retrieved_passages": [],
             "reasoning_trace": ["[P3] Chunking produced no records."],
         }
@@ -307,7 +305,6 @@ def retrieve_passages(state: ResearchState) -> ResearchState:
         ]
 
         return {
-            **state,
             "retrieved_passages": passages,
             "reasoning_trace": [
                 f"[P3] Retrieved {len(passages)} passages from {len(search_results)} results "
@@ -328,70 +325,70 @@ def retrieve_passages(state: ResearchState) -> ResearchState:
 # Uses mock_state() from state.py — no API keys needed.
 # Runs multiple back-to-back calls to verify isolation and show per-call timing.
 # ---------------------------------------------------------------------------
-if __name__ == "__main__":
-    import time
+# if __name__ == "__main__":
+#     import time
 
-    test_cases = [
-        {
-            "label": "Q1 — intermittent fasting (default mock)",
-            "state": mock_state(),
-        },
-        {
-            "label": "Q2 — same question, second call (isolation check)",
-            "state": mock_state(),
-        },
-        {
-            "label": "Q3 — different question + search results",
-            "state": {
-                **mock_state(),
-                "question": "What are the effects of sleep deprivation on cognitive performance?",
-                "sub_questions": [
-                    "How does sleep deprivation affect memory consolidation?",
-                    "What cognitive tasks are most impaired by lack of sleep?",
-                ],
-                "search_results": [
-                    {
-                        "url": "https://pubmed.ncbi.nlm.nih.gov/sleep1",
-                        "title": "Sleep deprivation and working memory",
-                        "snippet": "Even one night of sleep deprivation significantly impairs working memory capacity and attention in healthy adults.",
-                        "source": "pubmed.ncbi.nlm.nih.gov",
-                    },
-                    {
-                        "url": "https://www.nature.com/sleep2",
-                        "title": "REM sleep and memory consolidation",
-                        "snippet": "REM sleep plays a critical role in consolidating declarative and procedural memories acquired during waking hours.",
-                        "source": "nature.com",
-                    },
-                    {
-                        "url": "https://www.nejm.org/sleep3",
-                        "title": "Cognitive effects of chronic partial sleep loss",
-                        "snippet": "Chronic restriction to 6 hours of sleep per night produces cognitive deficits equivalent to two nights of total sleep deprivation.",
-                        "source": "nejm.org",
-                    },
-                ],
-            },
-        },
-    ]
+#     test_cases = [
+#         {
+#             "label": "Q1 — intermittent fasting (default mock)",
+#             "state": mock_state(),
+#         },
+#         {
+#             "label": "Q2 — same question, second call (isolation check)",
+#             "state": mock_state(),
+#         },
+#         {
+#             "label": "Q3 — different question + search results",
+#             "state": {
+#                 **mock_state(),
+#                 "question": "What are the effects of sleep deprivation on cognitive performance?",
+#                 "sub_questions": [
+#                     "How does sleep deprivation affect memory consolidation?",
+#                     "What cognitive tasks are most impaired by lack of sleep?",
+#                 ],
+#                 "search_results": [
+#                     {
+#                         "url": "https://pubmed.ncbi.nlm.nih.gov/sleep1",
+#                         "title": "Sleep deprivation and working memory",
+#                         "snippet": "Even one night of sleep deprivation significantly impairs working memory capacity and attention in healthy adults.",
+#                         "source": "pubmed.ncbi.nlm.nih.gov",
+#                     },
+#                     {
+#                         "url": "https://www.nature.com/sleep2",
+#                         "title": "REM sleep and memory consolidation",
+#                         "snippet": "REM sleep plays a critical role in consolidating declarative and procedural memories acquired during waking hours.",
+#                         "source": "nature.com",
+#                     },
+#                     {
+#                         "url": "https://www.nejm.org/sleep3",
+#                         "title": "Cognitive effects of chronic partial sleep loss",
+#                         "snippet": "Chronic restriction to 6 hours of sleep per night produces cognitive deficits equivalent to two nights of total sleep deprivation.",
+#                         "source": "nejm.org",
+#                     },
+#                 ],
+#             },
+#         },
+#     ]
 
-    total_start = time.time()
+#     total_start = time.time()
 
-    for i, tc in enumerate(test_cases, 1):
-        print(f"\n{'='*60}")
-        print(f"{tc['label']}")
-        print(f"{'='*60}")
+#     for i, tc in enumerate(test_cases, 1):
+#         print(f"\n{'='*60}")
+#         print(f"{tc['label']}")
+#         print(f"{'='*60}")
 
-        t0 = time.time()
-        result = retrieve_passages(tc["state"])
-        elapsed = time.time() - t0
+#         t0 = time.time()
+#         result = retrieve_passages(tc["state"])
+#         elapsed = time.time() - t0
 
-        passages = result["retrieved_passages"]
-        print(f"Passages returned: {len(passages)}  |  took {elapsed:.2f}s\n")
-        for j, p in enumerate(passages, 1):
-            print(f"  #{j}  score={p['score']:.3f}  [{p['source']}]")
-            print(f"       Title : {p['title']}")
-            print(f"       Text  : {p['text']}")
-            print()
-        print(f"  Trace: {result['reasoning_trace'][0]}")
+#         passages = result["retrieved_passages"]
+#         print(f"Passages returned: {len(passages)}  |  took {elapsed:.2f}s\n")
+#         for j, p in enumerate(passages, 1):
+#             print(f"  #{j}  score={p['score']:.3f}  [{p['source']}]")
+#             print(f"       Title : {p['title']}")
+#             print(f"       Text  : {p['text']}")
+#             print()
+#         print(f"  Trace: {result['reasoning_trace'][0]}")
 
-    print(f"\n{'='*60}")
-    print(f"Total wall-clock: {time.time() - total_start:.2f}s  ({len(test_cases)} calls)")
+#     print(f"\n{'='*60}")
+#     print(f"Total wall-clock: {time.time() - total_start:.2f}s  ({len(test_cases)} calls)")
