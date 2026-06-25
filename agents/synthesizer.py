@@ -40,7 +40,7 @@ from langchain_groq import ChatGroq
 from langchain_core.messages import SystemMessage, HumanMessage
 
 # pyrefly: ignore [missing-import]
-from prompts.synthesizer_prompts import (
+from agents.prompts.synthesizer_prompts import (
     SYNTHESIS_SYSTEM_BASE,
     SYNTHESIS_SYSTEM_CONFLICT,
     SELF_CHECK_SYSTEM,
