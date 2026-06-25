@@ -13,11 +13,12 @@ Contract:
   - route_on_conflict must remain in this file - pipeline.py imports it.
 
 Agentic patterns used:
-  - Few-shot prompting    -> LLM classifies pairs with labeled examples (conflict_prompt.py)
+  - Few-shot prompting    -> ChatPromptTemplate with system + human roles
+  - LangChain LCEL chain -> prompt | llm | JsonOutputParser (structured output)
+  - LangSmith tracing    -> @traceable decorates the classifier for full observability
   - Semantic pre-filter  -> Skip trivially unrelated pairs (bag-of-words cosine similarity)
   - Parallel LLM calls   -> asyncio.gather over all pairs for speed
-  - Retry with backoff   -> Handled by LLMCaller (max_retries=5)
-  - Structured output    -> JSON response for reliable parsing
+  - Retry with backoff   -> ChatGroq built-in max_retries
 
 Run in isolation:
     python agents/conflict.py
@@ -25,7 +26,6 @@ Run in isolation:
 
 import os
 import sys
-import json
 import time
 import asyncio
 import itertools
@@ -34,15 +34,18 @@ from typing import List, Tuple
 import yaml
 
 # Allow running directly as: python agents/conflict.py
-# if __name__ == "__main__" and "." not in sys.path:
-    # sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if __name__ == "__main__" and "." not in sys.path:
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dotenv import load_dotenv
 load_dotenv()
 
+from langchain_groq import ChatGroq
+from langchain_core.output_parsers import JsonOutputParser
+from langsmith import traceable
+
 from state import ResearchState, ConflictReport, ConflictPair, Passage, mock_state
 from agents.prompts.conflict_prompt import CONFLICT_DETECTOR_PROMPT
-from helpers.llm_caller import LLMCaller
 
 
 # ---------------------------------------------------------------------------
@@ -62,18 +65,27 @@ CONFLICT_MAX_RETRIES          = configs["CONFLICT_MAX_RETRIES"]
 CONFLICT_RETRY_DELAY          = configs["CONFLICT_RETRY_DELAY"]
 CONFLICT_MAX_CONCURRENT       = configs["CONFLICT_MAX_CONCURRENT"]
 
+# Inject LangSmith tracing toggle from shared config into environment
+if configs.get("LANGCHAIN_TRACING_V2", False):
+    os.environ["LANGCHAIN_TRACING_V2"] = "true"
+else:
+    os.environ["LANGCHAIN_TRACING_V2"] = "false"
+
 
 # ---------------------------------------------------------------------------
-# Initialize the shared LLM caller (Groq) - same pattern as decomposer.py
+# LangChain LCEL chain: prompt | ChatGroq | JsonOutputParser
+# LangSmith automatically traces this chain when LANGCHAIN_TRACING_V2=true
 # ---------------------------------------------------------------------------
 
-conflict_llm: LLMCaller = LLMCaller(
-    api_key=os.getenv("GROQ_API_KEY"),
+_llm = ChatGroq(
     model=configs["MAIN_MODEL"],
-    system_prompt=CONFLICT_DETECTOR_PROMPT,
-    identifier="ConflictDetector",
-    verbose=False,
+    temperature=0,
+    max_retries=CONFLICT_MAX_RETRIES,
+    api_key=os.getenv("GROQ_API_KEY"),
 )
+
+# Full chain: fills prompt template -> calls LLM -> parses JSON
+conflict_chain = CONFLICT_DETECTOR_PROMPT | _llm | JsonOutputParser()
 
 
 # ---------------------------------------------------------------------------
@@ -107,35 +119,27 @@ def _cosine_similarity_simple(text_a: str, text_b: str) -> float:
 
 
 # ---------------------------------------------------------------------------
-# Core LLM call - classify a single pair using LLMCaller
+# Core LLM call — traced by LangSmith via @traceable
 # ---------------------------------------------------------------------------
 
+@traceable(name="classify_passage_pair", tags=["conflict-detector"])
 def _classify_pair_sync(
     passage_a: Passage,
     passage_b: Passage,
 ) -> Tuple[str, float, str]:
     """
-    Call Groq via LLMCaller to classify one passage pair.
+    Invoke the LCEL chain for one passage pair.
     Returns (verdict, confidence, explanation).
-    LLMCaller already handles retries internally (max_retries=5).
+    LangSmith traces each call as 'classify_passage_pair'.
     """
-    global conflict_llm
-
     for attempt in range(CONFLICT_MAX_RETRIES):
         try:
-            raw = conflict_llm.call(
-                source_a=passage_a["source"],
-                text_a=passage_a["text"],
-                source_b=passage_b["source"],
-                text_b=passage_b["text"],
-            )
-
-            # Robust JSON extraction - handles markdown code fences if present
-            json_match = re.search(r'\{.*?\}', raw, re.DOTALL)
-            if json_match:
-                parsed = json.loads(json_match.group())
-            else:
-                parsed = json.loads(raw)
+            parsed = conflict_chain.invoke({
+                "source_a": passage_a["source"],
+                "text_a":   passage_a["text"],
+                "source_b": passage_b["source"],
+                "text_b":   passage_b["text"],
+            })
 
             verdict = str(parsed.get("verdict", "unrelated")).lower()
             if verdict not in ("contradict", "agree", "unrelated"):
@@ -148,17 +152,11 @@ def _classify_pair_sync(
 
             return verdict, confidence, explanation
 
-        except (json.JSONDecodeError, KeyError, IndexError) as e:
-            if attempt < CONFLICT_MAX_RETRIES - 1:
-                time.sleep(CONFLICT_RETRY_DELAY * (attempt + 1))
-                continue
-            return "unrelated", 0.0, f"Parse error after {CONFLICT_MAX_RETRIES} attempts: {e}"
-
         except Exception as e:
             if attempt < CONFLICT_MAX_RETRIES - 1:
                 time.sleep(CONFLICT_RETRY_DELAY * (attempt + 1))
                 continue
-            return "unrelated", 0.0, f"LLM error after {CONFLICT_MAX_RETRIES} attempts: {e}"
+            return "unrelated", 0.0, f"Chain error after {CONFLICT_MAX_RETRIES} attempts: {e}"
 
     return "unrelated", 0.0, "Max retries exceeded."
 
@@ -172,14 +170,11 @@ async def _classify_pair_async(
     passage_b: Passage,
     semaphore: asyncio.Semaphore,
 ) -> Tuple[Passage, Passage, str, float, str]:
-    """
-    Async wrapper around the sync LLM call.
-    Uses a semaphore to limit concurrent API requests (avoid rate limits).
-    """
+    """Runs _classify_pair_sync in a thread pool under a concurrency semaphore."""
     async with semaphore:
         loop = asyncio.get_event_loop()
         verdict, confidence, explanation = await loop.run_in_executor(
-            None,   # Default thread pool executor
+            None,
             _classify_pair_sync,
             passage_a,
             passage_b,
@@ -199,7 +194,7 @@ def detect_conflicts(state: ResearchState) -> ResearchState:
     if n < 2:
         return {
             "conflict_report": ConflictReport(has_conflicts=False, pairs=[]),
-            "reasoning_trace": ["Only 1 passage retrieved - no pairs to check."],
+            "reasoning_trace": ["[Conflict Detector] Only 1 passage retrieved - no pairs to check."],
         }
 
     # --- Step 1: Generate all C(n,2) pairs ---
@@ -221,7 +216,7 @@ def detect_conflicts(state: ResearchState) -> ResearchState:
         return {
             "conflict_report": ConflictReport(has_conflicts=False, pairs=[]),
             "reasoning_trace": [
-                f"Checked {total_pairs} pairs; all {skipped_count} skipped by "
+                f"[Conflict Detector] Checked {total_pairs} pairs; all {skipped_count} skipped by "
                 f"semantic pre-filter (similarity < {CONFLICT_SIMILARITY_THRESHOLD}). "
                 f"No conflicts found."
             ],
@@ -277,7 +272,7 @@ def detect_conflicts(state: ResearchState) -> ResearchState:
         f"{all_verdicts.count('unrelated')} unrelated"
     )
     trace_entry = (
-        f"Checked {total_pairs} pairs "
+        f"[Conflict Detector] Checked {total_pairs} pairs "
         f"({skipped_count} pre-filtered, {len(filtered_pairs)} sent to LLM). "
         f"Verdicts: {verdict_summary}. "
         f"Confirmed conflicts (>={CONFLICT_CONFIDENCE_THRESHOLD} confidence): "
@@ -309,9 +304,10 @@ if __name__ == "__main__":
     print("=" * 60)
     print("CONFLICT DETECTOR - Isolation Test")
     print("=" * 60)
-    print(f"Model:      {configs['MAIN_MODEL']}")
+    print(f"Model:                {configs['MAIN_MODEL']}")
     print(f"Confidence threshold: {CONFLICT_CONFIDENCE_THRESHOLD}")
     print(f"Similarity threshold: {CONFLICT_SIMILARITY_THRESHOLD}")
+    print(f"LangSmith tracing:    {os.getenv('LANGCHAIN_TRACING_V2', 'false')}")
 
     state = mock_state()
     result = detect_conflicts(state)

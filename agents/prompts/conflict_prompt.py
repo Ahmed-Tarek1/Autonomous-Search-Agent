@@ -1,4 +1,6 @@
-CONFLICT_DETECTOR_PROMPT = """You are a scientific fact-checking assistant. Your job is to determine whether two research passages CONTRADICT each other, AGREE with each other, or are UNRELATED.
+from langchain_core.prompts import PromptTemplate
+
+CONFLICT_DETECTOR_PROMPT = PromptTemplate.from_template("""You are a scientific fact-checking assistant. Your job is to determine whether two research passages CONTRADICT each other, AGREE with each other, or are UNRELATED.
 
 Definitions:
 - contradict: The passages make opposing factual claims about the same topic. Example: one says X increases Y, another says X decreases Y.
@@ -47,4 +49,4 @@ Passage A (source: {source_a}):
 
 Passage B (source: {source_b}):
 "{text_b}"
-"""
+""")

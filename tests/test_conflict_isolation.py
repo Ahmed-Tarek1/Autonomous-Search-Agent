@@ -1,30 +1,34 @@
 """
 tests/test_conflict_isolation.py
 ==================================
-Isolation test for P4 Conflict Detector.
+Isolation test for Conflict Detector.
 Tests both the no-conflict path and the conflict-detected path.
-No API key required - the LLMCaller is monkeypatched.
+No API key required - the LangChain chain is monkeypatched.
 
 Run from repo root:
     pytest tests/test_conflict_isolation.py -v
 """
 import pytest
 from state import Passage, ConflictReport, mock_state
+import os
 
+# Prevent crash when loading agents if GROQ_API_KEY is not in .env
+os.environ["GROQ_API_KEY"] = "mock_key_for_testing_so_chatgroq_doesnt_crash"
 
 # ---------------------------------------------------------------------------
-# Helper: build a fake LLMCaller.call() response
+# Helper: build a fake conflict_chain.invoke() response
 # ---------------------------------------------------------------------------
 
-def _fake_llm_call(verdict: str, confidence: float, explanation: str):
-    """Returns a function that mimics conflict_llm.call() returning JSON text."""
-    import json
-    response_text = json.dumps({
-        "verdict": verdict,
-        "confidence": confidence,
-        "explanation": explanation,
-    })
-    return lambda **kwargs: response_text
+def _fake_chain(verdict: str, confidence: float, explanation: str):
+    """Returns a fake chain object with an invoke() method."""
+    class FakeChain:
+        def invoke(self, *args, **kwargs):
+            return {
+                "verdict": verdict,
+                "confidence": confidence,
+                "explanation": explanation,
+            }
+    return FakeChain()
 
 
 # ---------------------------------------------------------------------------
@@ -39,7 +43,7 @@ class TestConflictEdgeCases:
         state["retrieved_passages"] = state["retrieved_passages"][:1]
         result = detect_conflicts(state)
         assert result["conflict_report"]["has_conflicts"] is False
-        assert "[P4]" in result["reasoning_trace"][-1]
+        assert "[Conflict Detector]" in result["reasoning_trace"][-1]
 
     def test_empty_passages_no_check(self):
         """With 0 passages should return no conflicts gracefully."""
@@ -58,7 +62,7 @@ class TestNoConflict:
     def test_agree_verdict_produces_no_conflict(self, monkeypatch):
         """LLM returns 'agree' -> has_conflicts must be False."""
         import agents.conflict as mod
-        monkeypatch.setattr(mod.conflict_llm, "call", _fake_llm_call("agree", 0.90, "Both agree."))
+        monkeypatch.setattr(mod, "conflict_chain", _fake_chain("agree", 0.90, "Both agree."))
 
         result = mod.detect_conflicts(mock_state())
         assert result["conflict_report"]["has_conflicts"] is False
@@ -67,7 +71,7 @@ class TestNoConflict:
     def test_low_confidence_contradict_ignored(self, monkeypatch):
         """contradict with confidence < threshold must NOT count as conflict."""
         import agents.conflict as mod
-        monkeypatch.setattr(mod.conflict_llm, "call", _fake_llm_call("contradict", 0.50, "Maybe conflict."))
+        monkeypatch.setattr(mod, "conflict_chain", _fake_chain("contradict", 0.50, "Maybe conflict."))
 
         result = mod.detect_conflicts(mock_state())
         assert result["conflict_report"]["has_conflicts"] is False
@@ -75,7 +79,7 @@ class TestNoConflict:
     def test_unrelated_verdict_produces_no_conflict(self, monkeypatch):
         """LLM returns 'unrelated' -> has_conflicts must be False."""
         import agents.conflict as mod
-        monkeypatch.setattr(mod.conflict_llm, "call", _fake_llm_call("unrelated", 0.99, "Different topics."))
+        monkeypatch.setattr(mod, "conflict_chain", _fake_chain("unrelated", 0.99, "Different topics."))
 
         result = mod.detect_conflicts(mock_state())
         assert result["conflict_report"]["has_conflicts"] is False
@@ -117,7 +121,7 @@ class TestConflictDetected:
     def test_high_confidence_contradict_flagged(self, monkeypatch):
         """High-confidence contradict -> has_conflicts=True, pair stored."""
         import agents.conflict as mod
-        monkeypatch.setattr(mod.conflict_llm, "call", _fake_llm_call("contradict", 0.91, "Direct contradiction."))
+        monkeypatch.setattr(mod, "conflict_chain", _fake_chain("contradict", 0.91, "Direct contradiction."))
 
         result = mod.detect_conflicts(self._conflicting_state())
         assert result["conflict_report"]["has_conflicts"] is True
@@ -126,7 +130,7 @@ class TestConflictDetected:
     def test_conflict_pair_schema(self, monkeypatch):
         """Each ConflictPair must have all required fields."""
         import agents.conflict as mod
-        monkeypatch.setattr(mod.conflict_llm, "call", _fake_llm_call("contradict", 0.91, "Contradicting."))
+        monkeypatch.setattr(mod, "conflict_chain", _fake_chain("contradict", 0.91, "Contradicting."))
 
         result = mod.detect_conflicts(self._conflicting_state())
         for pair in result["conflict_report"]["pairs"]:
@@ -147,13 +151,13 @@ class TestReasoningTrace:
     def test_trace_is_list_of_one_entry(self, monkeypatch):
         """Node must return exactly 1 new reasoning_trace entry (LangGraph operator.add)."""
         import agents.conflict as mod
-        monkeypatch.setattr(mod.conflict_llm, "call", _fake_llm_call("agree", 0.9, "Fine."))
+        monkeypatch.setattr(mod, "conflict_chain", _fake_chain("agree", 0.9, "Fine."))
 
         state = mock_state()
         result = mod.detect_conflicts(state)
         assert isinstance(result["reasoning_trace"], list)
         assert len(result["reasoning_trace"]) == 1
-        assert result["reasoning_trace"][0].startswith("[P4]")
+        assert result["reasoning_trace"][0].startswith("[Conflict Detector]")
 
 
 # ---------------------------------------------------------------------------

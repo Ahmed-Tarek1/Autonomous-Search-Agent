@@ -7,6 +7,7 @@ CONFLICT_SIMILARITY_THRESHOLD: 0.10   # Pairs below this cosine similarity are s
 CONFLICT_MAX_RETRIES: 3               # LLM call retries on transient failure
 CONFLICT_RETRY_DELAY: 2.0             # Base delay (seconds) for exponential backoff
 CONFLICT_MAX_CONCURRENT: 3            # Max parallel LLM calls (respects Groq rate limits)
+LANGCHAIN_TRACING_V2: true            # Enable LangSmith tracing for this module
 
 # Search agent configuration
 SEARCH_TEMPERATURE: 0
