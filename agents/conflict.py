@@ -34,8 +34,8 @@ from typing import List, Tuple
 import yaml
 
 # Allow running directly as: python agents/conflict.py
-if __name__ == "__main__" and "." not in sys.path:
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# if __name__ == "__main__" and "." not in sys.path:
+    # sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dotenv import load_dotenv
 load_dotenv()

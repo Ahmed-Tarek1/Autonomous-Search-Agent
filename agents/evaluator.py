@@ -39,7 +39,7 @@ from ragas.llms import LangchainLLMWrapper
 from ragas.metrics import AnswerRelevancy, Faithfulness
 
 # --- path fix so this runs from anywhere ---
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from state import ResearchState, mock_state
 import yaml
 

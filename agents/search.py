@@ -30,7 +30,7 @@ from langchain_groq import ChatGroq
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.tools import tool
 from agents.prompts.react_prompt import REACT_PROMPT
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+# sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from state import ResearchState, SearchResult, mock_state
 
