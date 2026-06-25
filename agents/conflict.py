@@ -1,7 +1,6 @@
 """
 agents/conflict.py - Conflict Detector
 ==========================================
-Owner: Person 4
 Reads:  state["retrieved_passages"]
 Writes: state["conflict_report"], state["reasoning_trace"]
 
