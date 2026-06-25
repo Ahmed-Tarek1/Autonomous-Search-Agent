@@ -31,3 +31,17 @@ REACT_SYSTEM: |-
 # Decomposer Configurations
 MIN_QUESTIONS: 2
 MAX_QUESTIONS: 5
+
+#retriever
+CHUNK_SIZE: 512
+CHUNK_OVERLAP: 64
+TOP_K: 20
+CE_TOP_N: 40
+TOP_N: 5
+MMR_LAMBDA: 0.7
+RRF_K: 60
+
+EMBEDDING_MODEL: "BAAI/bge-small-en-v1.5"
+RERANKING_MODEL: "BAAI/bge-reranker-base"
+QUERY_PREFIX: "Represent this sentence for searching relevant passages: "
+COLLECTION_NAME: "passages"
