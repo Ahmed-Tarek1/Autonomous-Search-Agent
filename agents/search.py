@@ -29,7 +29,7 @@ load_dotenv()
 from langchain_groq import ChatGroq
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.tools import tool
-
+from agents.prompts.react_prompt import REACT_PROMPT
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from state import ResearchState, SearchResult, mock_state
@@ -100,7 +100,7 @@ def _make_react_system() -> str:
     """
     Build the ReAct prompt at call time.
     """
-    return configs["REACT_SYSTEM"].format(
+    return REACT_PROMPT.format(
         min_sources=MIN_SOURCES, min_domains=MIN_DOMAINS
     )
 

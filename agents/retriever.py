@@ -27,24 +27,40 @@ from qdrant_client.models import Distance, VectorParams, PointStruct
 from sentence_transformers import SentenceTransformer, CrossEncoder
 
 from state import ResearchState, Passage, SearchResult, mock_state
+import yaml
+from dotenv import load_dotenv
+
+def load_variables():
+    file = open("./configs.yaml")
+    configs = yaml.safe_load(file)
+    file.close()
+    load_dotenv()
+    
+    return configs
+
+configs = load_variables()
 
 # ---------------------------------------------------------------------------
 # Tuning knobs — all configurable from .env, no code change needed
 # ---------------------------------------------------------------------------
-_CHUNK_SIZE     = int(os.getenv("P3_CHUNK_SIZE",    "512"))   # max chars per chunk
-_CHUNK_OVERLAP  = int(os.getenv("P3_CHUNK_OVERLAP", "64"))    # overlap between adjacent chunks
-_TOP_K          = int(os.getenv("P3_TOP_K",         "20"))    # candidates retrieved per query per retriever
-_CE_TOP_N       = int(os.getenv("P3_CE_TOP_N",      "40"))    # max candidates passed to cross-encoder
-_FINAL_TOP_N    = int(os.getenv("P3_TOP_N",         "5"))     # final passages returned
-_MMR_LAMBDA     = float(os.getenv("P3_MMR_LAMBDA",  "0.7"))   # 1.0 = pure relevance, 0.0 = pure diversity
-_RRF_K          = 60                                           # standard RRF constant (not tuned)
+_CHUNK_SIZE    = configs.get("CHUNK_SIZE", 512)      # max chars per chunk
+_CHUNK_OVERLAP = configs.get("CHUNK_OVERLAP", 64)    # overlap between adjacent chunks
+_TOP_K         = configs.get("TOP_K", 20)            # candidates retrieved per query per retriever
+_CE_TOP_N      = configs.get("CE_TOP_N", 40)         # max candidates passed to cross-encoder
+_FINAL_TOP_N   = configs.get("TOP_N", 5)             # final passages returned
+_MMR_LAMBDA    = configs.get("MMR_LAMBDA", 0.7)      # 1.0 = pure relevance, 0.0 = pure diversity
+_RRF_K         = configs.get("RRF_K", 60)                                           # standard RRF constant (not tuned)
+
+
+
+
 
 # BGE models are purpose-built for retrieval — consistently outperform MiniLM on MTEB benchmarks.
 # BGE requires a query-side prefix for asymmetric retrieval; passages are encoded as-is.
-_EMBED_MODEL    = "BAAI/bge-small-en-v1.5"
-_RERANK_MODEL   = "BAAI/bge-reranker-base"
-_QUERY_PREFIX   = "Represent this sentence for searching relevant passages: "
-_COLLECTION     = "passages"
+_EMBED_MODEL    = configs["EMBEDDING_MODEL"]
+_RERANK_MODEL   = configs["RERANKING_MODEL"]
+_QUERY_PREFIX   = configs["QUERY_PREFIX"]
+_COLLECTION     = configs["COLLECTION_NAME"]
 
 # ---------------------------------------------------------------------------
 # Splitter — tries paragraph → sentence → space → char in order.
