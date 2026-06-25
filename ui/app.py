@@ -18,7 +18,7 @@ Shows:
 import sys
 import os
 import time
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+# sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 import streamlit as st
 from pipeline import run_pipeline

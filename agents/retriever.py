@@ -18,7 +18,7 @@ import re
 import sys
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from rank_bm25 import BM25Okapi
 from langchain_text_splitters import RecursiveCharacterTextSplitter
