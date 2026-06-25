@@ -46,11 +46,11 @@ from helpers.llm_caller import LLMCaller
 
 
 # ---------------------------------------------------------------------------
-# Load shared configuration from shared_config.yaml
+# Load shared configuration from configs.yaml
 # ---------------------------------------------------------------------------
 
 def _load_config() -> dict:
-    config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "shared_config.yaml")
+    config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "configs.yaml")
     with open(config_path) as f:
         return yaml.safe_load(f)
 

@@ -22,7 +22,7 @@ import yaml
 import json
 
 def load_variables():
-    file = open("./shared_config.yaml")
+    file = open("./configs.yaml")
     configs = yaml.safe_load(file)
     file.close()
     load_dotenv()
@@ -45,10 +45,12 @@ def decompose_query(state: ResearchState) -> ResearchState:
     """
     global decomposer
     question: str = state["question"]
-    decomposed_query: list[str] = decomposer.call(question=question)
+    MIN_QUESTIONS = configs["MIN_QUESTIONS"]
+    MAX_QUESTIONS = configs["MAX_QUESTIONS"]
+    decomposed_query: list[str] = decomposer.call(question=question, maximum=MAX_QUESTIONS, minimum=MIN_QUESTIONS)
     
 
-    sub_questions = json.loads(decompose_query)
+    sub_questions = json.loads(decomposed_query)
 
     # Mock output so pipeline runs end-to-end from Day 1
     # sub_questions = [
@@ -58,10 +60,11 @@ def decompose_query(state: ResearchState) -> ResearchState:
     #     f"What do meta-analyses conclude about {question.lower().rstrip('?')}?",
     # ]
     return {
-        **state,
-        "sub_questions": sub_questions,
-        "reasoning_trace": [f"[P1] STUB — decomposed into {len(sub_questions)} sub-questions"],
-    }
+    "sub_questions": sub_questions,
+    "reasoning_trace": [
+        f"[P1] Decomposed '{question}' into {len(sub_questions)} sub-questions"
+    ],
+}
 
 
 # ---------------------------------------------------------------------------

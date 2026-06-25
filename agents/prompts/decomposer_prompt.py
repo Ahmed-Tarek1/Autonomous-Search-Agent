@@ -10,6 +10,8 @@ Each query must:
 - Not depend on the result of any other query.
 - Be phrased as a search query, not a conversational or reasoning question.
 - Preserve important domain keywords from the original question.
+- Be Divided into a MINIMUM of {minimum} sub-queries and a MAXIMUM of {maximum}. No more and no less.
+
 
 You must NOT:
 - Create dependent multi-hop chains (e.g., "What is X → What is Y about X").
@@ -88,11 +90,3 @@ output: [
 ### Output:
 """
 
-
-[
-'remote work productivity vs office work studies', 
-'employee satisfaction remote work compared to office environment', 
-'remote work impact on collaboration and communication effectiveness', 
-'cost savings remote work versus traditional office operations', 
-'remote work employee retention and turnover compared to office work'
-]

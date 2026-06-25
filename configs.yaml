@@ -25,3 +25,9 @@ REACT_SYSTEM: |-
   - SEARCH: <your refined query>  (to run another search)
 
   No explanation. No other text.
+
+
+
+# Decomposer Configurations
+MIN_QUESTIONS: 2
+MAX_QUESTIONS: 5

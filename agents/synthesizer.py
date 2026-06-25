@@ -48,7 +48,7 @@ from prompts.synthesizer_prompts import (
 
 
 def load_variables():
-    file = open("./shared_config.yaml")
+    file = open("./configs.yaml")
     configs = yaml.safe_load(file)
     file.close()
 

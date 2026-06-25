@@ -40,7 +40,7 @@ from state import ResearchState, SearchResult, mock_state
 # ---------------------------------------------------------------------------
 
 def _load_config() -> dict:
-    config_path = Path(__file__).resolve().parent.parent / "shared_config.yaml"
+    config_path = Path(__file__).resolve().parent.parent / "configs.yaml"
     with open(config_path, "r") as f:
         return yaml.safe_load(f)
 
@@ -48,7 +48,7 @@ def _load_config() -> dict:
 try:
     configs = _load_config()
 except (FileNotFoundError, yaml.YAMLError) as e:
-    raise RuntimeError(f"Failed to load shared_config.yaml: {e}") from e
+    raise RuntimeError(f"Failed to load configs.yaml: {e}") from e
 
 MAX_ITERATIONS     = configs.get("MAX_ITERATIONS", 5)
 MIN_SOURCES        = configs.get("MIN_SOURCES", 3)
