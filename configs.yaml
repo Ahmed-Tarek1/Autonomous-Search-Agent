@@ -33,5 +33,7 @@ EMBEDDING_MODEL: "BAAI/bge-small-en-v1.5"
 RERANKING_MODEL: "BAAI/bge-reranker-base"
 QUERY_PREFIX: "Represent this sentence for searching relevant passages: "
 COLLECTION_NAME: "passages"
+DELETE_AFTER: false        # set to true to auto-delete Qdrant collections after each retrieval call
+COLLECTION_THRESHOLD: 900  # delete oldest collections when count exceeds this (Qdrant free tier limit: 1000)
 
 VERBOSE: False
