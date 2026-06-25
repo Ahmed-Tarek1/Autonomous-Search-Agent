@@ -45,7 +45,7 @@ import yaml
 
 
 #read config.yaml file
-with open("shared_config.yaml", "r") as f:
+with open("configs.yaml", "r") as f:
     config = yaml.safe_load(f)
     
 MAIN_MODEL = config["MAIN_MODEL"]
