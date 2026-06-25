@@ -16,9 +16,11 @@ Run in isolation:
 import os
 import re
 import sys
+import time
+import uuid
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
-# sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from rank_bm25 import BM25Okapi
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -57,10 +59,12 @@ _RRF_K         = configs.get("RRF_K", 60)                                       
 
 # BGE models are purpose-built for retrieval — consistently outperform MiniLM on MTEB benchmarks.
 # BGE requires a query-side prefix for asymmetric retrieval; passages are encoded as-is.
-_EMBED_MODEL    = configs["EMBEDDING_MODEL"]
-_RERANK_MODEL   = configs["RERANKING_MODEL"]
-_QUERY_PREFIX   = configs["QUERY_PREFIX"]
-_COLLECTION     = configs["COLLECTION_NAME"]
+_EMBED_MODEL       = configs["EMBEDDING_MODEL"]
+_RERANK_MODEL      = configs["RERANKING_MODEL"]
+_QUERY_PREFIX      = configs["QUERY_PREFIX"]
+_COLLECTION_PREFIX     = configs["COLLECTION_NAME"]  # used as prefix; timestamp+UUID suffix added per call
+_DELETE_AFTER          = configs.get("DELETE_AFTER", False)
+_COLLECTION_THRESHOLD  = configs.get("COLLECTION_THRESHOLD", 900)  # delete oldest when count exceeds this
 
 # ---------------------------------------------------------------------------
 # Splitter — tries paragraph → sentence → space → char in order.
@@ -79,7 +83,14 @@ _splitter = RecursiveCharacterTextSplitter(
 # ---------------------------------------------------------------------------
 EMBEDDER = SentenceTransformer(_EMBED_MODEL)   # bi-encoder: text → dense vector
 RERANKER = CrossEncoder(_RERANK_MODEL)         # cross-encoder: scores (query, passage) pairs
-qdrant   = QdrantClient(":memory:")            # vector DB; swap URL+key for cloud
+
+_QDRANT_URL = os.getenv("QDRANT_URL")
+_QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
+qdrant = (
+    QdrantClient(url=_QDRANT_URL, api_key=_QDRANT_API_KEY)
+    if _QDRANT_URL and _QDRANT_API_KEY
+    else QdrantClient(":memory:")
+)
 
 
 # ---------------------------------------------------------------------------
@@ -142,6 +153,22 @@ def _mmr(
 
 
 # ---------------------------------------------------------------------------
+# Collection cleanup
+# ---------------------------------------------------------------------------
+
+def _cleanup_old_collections() -> None:
+    """Delete oldest collections when the count exceeds _COLLECTION_THRESHOLD."""
+    our = sorted(
+        c.name for c in qdrant.get_collections().collections
+        if c.name.startswith(_COLLECTION_PREFIX + "_")
+    )
+    overflow = len(our) - _COLLECTION_THRESHOLD
+    if overflow > 0:
+        for name in our[:overflow]:
+            qdrant.delete_collection(name)
+
+
+# ---------------------------------------------------------------------------
 # Main node
 # ---------------------------------------------------------------------------
 
@@ -188,18 +215,21 @@ def retrieve_passages(state: ResearchState) -> ResearchState:
 
     # ------------------------------------------------------------------
     # Step 4 — Store vectors in Qdrant
-    # Metadata (url, title, source) stored per-point so no separate mapping needed.
+    # UUID suffix isolates this run from concurrent/prior runs on the same cluster.
+    # Set P3_DELETE_AFTER=true in .env to auto-delete after each call; default keeps them.
     # ------------------------------------------------------------------
+    _cleanup_old_collections()
+    collection_name = f"{_COLLECTION_PREFIX}_{int(time.time())}_{uuid.uuid4().hex[:8]}"
     existing = {c.name for c in qdrant.get_collections().collections}
-    if _COLLECTION in existing:
-        qdrant.delete_collection(_COLLECTION)
+    if collection_name in existing:
+        qdrant.delete_collection(collection_name)
 
     qdrant.create_collection(
-        collection_name=_COLLECTION,
+        collection_name=collection_name,
         vectors_config=VectorParams(size=vectors.shape[1], distance=Distance.COSINE),
     )
     qdrant.upsert(
-        collection_name=_COLLECTION,
+        collection_name=collection_name,
         points=[
             PointStruct(
                 id=i,
@@ -247,7 +277,7 @@ def retrieve_passages(state: ResearchState) -> ResearchState:
 
             # Dense ranking for this query
             for rank, hit in enumerate(qdrant.query_points(
-                collection_name=_COLLECTION,
+                collection_name=collection_name,
                 query=qvec.tolist(),
                 limit=_TOP_K,
             ).points):
@@ -314,10 +344,8 @@ def retrieve_passages(state: ResearchState) -> ResearchState:
         }
 
     finally:
-        # Always clean up — even if an exception is raised mid-retrieval.
-        # Guard 1 (delete-before-write) handles the case where this crashes
-        # before reaching here, but try/finally ensures it on the happy path too.
-        qdrant.delete_collection(_COLLECTION)
+        if _DELETE_AFTER:
+            qdrant.delete_collection(collection_name)
 
 
 # ---------------------------------------------------------------------------
@@ -325,70 +353,70 @@ def retrieve_passages(state: ResearchState) -> ResearchState:
 # Uses mock_state() from state.py — no API keys needed.
 # Runs multiple back-to-back calls to verify isolation and show per-call timing.
 # ---------------------------------------------------------------------------
-# if __name__ == "__main__":
-#     import time
+if __name__ == "__main__":
+    import time
 
-#     test_cases = [
-#         {
-#             "label": "Q1 — intermittent fasting (default mock)",
-#             "state": mock_state(),
-#         },
-#         {
-#             "label": "Q2 — same question, second call (isolation check)",
-#             "state": mock_state(),
-#         },
-#         {
-#             "label": "Q3 — different question + search results",
-#             "state": {
-#                 **mock_state(),
-#                 "question": "What are the effects of sleep deprivation on cognitive performance?",
-#                 "sub_questions": [
-#                     "How does sleep deprivation affect memory consolidation?",
-#                     "What cognitive tasks are most impaired by lack of sleep?",
-#                 ],
-#                 "search_results": [
-#                     {
-#                         "url": "https://pubmed.ncbi.nlm.nih.gov/sleep1",
-#                         "title": "Sleep deprivation and working memory",
-#                         "snippet": "Even one night of sleep deprivation significantly impairs working memory capacity and attention in healthy adults.",
-#                         "source": "pubmed.ncbi.nlm.nih.gov",
-#                     },
-#                     {
-#                         "url": "https://www.nature.com/sleep2",
-#                         "title": "REM sleep and memory consolidation",
-#                         "snippet": "REM sleep plays a critical role in consolidating declarative and procedural memories acquired during waking hours.",
-#                         "source": "nature.com",
-#                     },
-#                     {
-#                         "url": "https://www.nejm.org/sleep3",
-#                         "title": "Cognitive effects of chronic partial sleep loss",
-#                         "snippet": "Chronic restriction to 6 hours of sleep per night produces cognitive deficits equivalent to two nights of total sleep deprivation.",
-#                         "source": "nejm.org",
-#                     },
-#                 ],
-#             },
-#         },
-#     ]
+    test_cases = [
+        {
+            "label": "Q1 — intermittent fasting (default mock)",
+            "state": mock_state(),
+        },
+        {
+            "label": "Q2 — same question, second call (isolation check)",
+            "state": mock_state(),
+        },
+        {
+            "label": "Q3 — different question + search results",
+            "state": {
+                **mock_state(),
+                "question": "What are the effects of sleep deprivation on cognitive performance?",
+                "sub_questions": [
+                    "How does sleep deprivation affect memory consolidation?",
+                    "What cognitive tasks are most impaired by lack of sleep?",
+                ],
+                "search_results": [
+                    {
+                        "url": "https://pubmed.ncbi.nlm.nih.gov/sleep1",
+                        "title": "Sleep deprivation and working memory",
+                        "snippet": "Even one night of sleep deprivation significantly impairs working memory capacity and attention in healthy adults.",
+                        "source": "pubmed.ncbi.nlm.nih.gov",
+                    },
+                    {
+                        "url": "https://www.nature.com/sleep2",
+                        "title": "REM sleep and memory consolidation",
+                        "snippet": "REM sleep plays a critical role in consolidating declarative and procedural memories acquired during waking hours.",
+                        "source": "nature.com",
+                    },
+                    {
+                        "url": "https://www.nejm.org/sleep3",
+                        "title": "Cognitive effects of chronic partial sleep loss",
+                        "snippet": "Chronic restriction to 6 hours of sleep per night produces cognitive deficits equivalent to two nights of total sleep deprivation.",
+                        "source": "nejm.org",
+                    },
+                ],
+            },
+        },
+    ]
 
-#     total_start = time.time()
+    total_start = time.time()
 
-#     for i, tc in enumerate(test_cases, 1):
-#         print(f"\n{'='*60}")
-#         print(f"{tc['label']}")
-#         print(f"{'='*60}")
+    for i, tc in enumerate(test_cases, 1):
+        print(f"\n{'='*60}")
+        print(f"{tc['label']}")
+        print(f"{'='*60}")
 
-#         t0 = time.time()
-#         result = retrieve_passages(tc["state"])
-#         elapsed = time.time() - t0
+        t0 = time.time()
+        result = retrieve_passages(tc["state"])
+        elapsed = time.time() - t0
 
-#         passages = result["retrieved_passages"]
-#         print(f"Passages returned: {len(passages)}  |  took {elapsed:.2f}s\n")
-#         for j, p in enumerate(passages, 1):
-#             print(f"  #{j}  score={p['score']:.3f}  [{p['source']}]")
-#             print(f"       Title : {p['title']}")
-#             print(f"       Text  : {p['text']}")
-#             print()
-#         print(f"  Trace: {result['reasoning_trace'][0]}")
+        passages = result["retrieved_passages"]
+        print(f"Passages returned: {len(passages)}  |  took {elapsed:.2f}s\n")
+        for j, p in enumerate(passages, 1):
+            print(f"  #{j}  score={p['score']:.3f}  [{p['source']}]")
+            print(f"       Title : {p['title']}")
+            print(f"       Text  : {p['text']}")
+            print()
+        print(f"  Trace: {result['reasoning_trace'][0]}")
 
-#     print(f"\n{'='*60}")
-#     print(f"Total wall-clock: {time.time() - total_start:.2f}s  ({len(test_cases)} calls)")
+    print(f"\n{'='*60}")
+    print(f"Total wall-clock: {time.time() - total_start:.2f}s  ({len(test_cases)} calls)")
