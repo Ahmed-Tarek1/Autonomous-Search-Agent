@@ -59,7 +59,7 @@ configs = load_variables()
 
 llm = ChatGroq(
     model=configs["MAIN_MODEL"],
-    temperature=0.2,
+    temperature=0.0,
     groq_api_key=os.environ.get("GROQ_API_KEY", "mock-key"),
 )
 
