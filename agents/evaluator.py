@@ -76,11 +76,18 @@ BENCHMARK_QUESTIONS = [
 # Core helpers
 # ---------------------------------------------------------------------------
 
-def compute_ragas_scores(state: ResearchState) -> dict:
+def _run_ragas_in_thread(state: ResearchState) -> dict:
     """
-    Run RAGAS faithfulness + answer_relevancy on the final state.
-    Returns None values if report/passages are missing or RAGAS fails.
+    The actual RAGAS computation — always called inside a dedicated thread
+    that owns a plain asyncio event loop.  This avoids the nest_asyncio /
+    uvloop incompatibility that occurs when evaluate_state() is called from
+    FastAPI's async context (which uses uvloop).
     """
+    import asyncio
+    # Give this thread its own vanilla asyncio loop so RAGAS / nest_asyncio
+    # never sees uvloop.
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     try:
         if not state.get("final_report") or not state.get("retrieved_passages"):
             print("[P6] Warning: empty report or passages — skipping RAGAS")
@@ -106,6 +113,21 @@ def compute_ragas_scores(state: ResearchState) -> dict:
     except Exception as e:
         print(f"[P6] RAGAS error: {e}")
         return {"faithfulness": None, "answer_relevancy": None}
+    finally:
+        loop.close()
+
+
+def compute_ragas_scores(state: ResearchState) -> dict:
+    """
+    Run RAGAS faithfulness + answer_relevancy on the final state.
+    Delegates to a background thread with its own asyncio loop to avoid
+    the nest_asyncio / uvloop incompatibility when called from FastAPI.
+    Returns None values if report/passages are missing or RAGAS fails.
+    """
+    import concurrent.futures
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(_run_ragas_in_thread, state)
+        return future.result()
 
 
 def compute_hallucination_rate(state: ResearchState) -> float:

@@ -8,7 +8,7 @@ Run:
 
 Shows:
   - Research question input
-  - Live pipeline progress
+  - Live pipeline progress (real node events via SSE from FastAPI)
   - Final report with inline citations
   - Conflict warning if detected
   - Eval scores
@@ -30,8 +30,15 @@ from reportlab.lib import colors
 from reportlab.lib.enums import TA_LEFT
 import markdown as md_lib
 
+import json
+import requests
+
 import streamlit as st
-from pipeline import run_pipeline
+
+# ---------------------------------------------------------------------------
+# FastAPI backend URL — override with RESEARCH_API_URL env var if needed
+# ---------------------------------------------------------------------------
+API_BASE = os.getenv("RESEARCH_API_URL", "http://localhost:8000")
 
 
 # ---------------------------------------------------------------------------
@@ -47,7 +54,6 @@ def highlight_unverified_claims(report: str, unverified: list[str]) -> str:
         return report
 
     for claim in unverified:
-        # Escape the claim for use in a regex, then allow flexible whitespace
         pattern = re.escape(claim.strip())
         pattern = re.sub(r"\\ ", r"\\s+", pattern)
         highlighted = (
@@ -66,18 +72,15 @@ def _safe_text(text: str) -> str:
     This prevents the ■ placeholder boxes in the output PDF.
     """
     replacements = {
-        # Common Unicode punctuation -> ASCII equivalents
-        "\u2019": "'", "\u2018": "'",   # curly single quotes
-        "\u201c": '"', "\u201d": '"',   # curly double quotes
-        "\u2013": "-", "\u2014": "--",  # en-dash, em-dash
-        "\u2026": "...",                # ellipsis
-        "\u00b7": "-",                  # middle dot
-        "\u2022": "-",                  # bullet
-        # Strip emojis and other non-Latin-1 symbols outright
+        "\u2019": "'", "\u2018": "'",
+        "\u201c": '"', "\u201d": '"',
+        "\u2013": "-", "\u2014": "--",
+        "\u2026": "...",
+        "\u00b7": "-",
+        "\u2022": "-",
     }
     for src, dst in replacements.items():
         text = text.replace(src, dst)
-    # Drop anything still outside Latin-1 (e.g. emoji)
     text = text.encode("latin-1", errors="ignore").decode("latin-1")
     return text
 
@@ -85,8 +88,7 @@ def _safe_text(text: str) -> str:
 def _mark_to_reportlab(text: str, unverified: list[str]) -> str:
     """
     Convert unverified-claim sentences into ReportLab <font backColor> spans
-    so they appear highlighted yellow in the PDF (instead of HTML <mark> tags,
-    which ReportLab ignores).
+    so they appear highlighted yellow in the PDF.
     """
     if not unverified:
         return text
@@ -120,10 +122,8 @@ def build_pdf(question: str, report_md: str, citations: list[str],
     base = getSampleStyleSheet()
 
     title_style = ParagraphStyle(
-        "ReportTitle",
-        parent=base["Title"],
-        fontSize=18,
-        spaceAfter=6,
+        "ReportTitle", parent=base["Title"],
+        fontSize=18, spaceAfter=6,
         textColor=colors.HexColor("#1a237e"),
     )
     h2_style = ParagraphStyle(
@@ -134,7 +134,6 @@ def build_pdf(question: str, report_md: str, citations: list[str],
     body_style = ParagraphStyle(
         "Body", parent=base["Normal"],
         fontSize=10, leading=15, spaceAfter=6,
-        alignment=TA_LEFT,
     )
     caption_style = ParagraphStyle(
         "Caption", parent=base["Normal"],
@@ -153,43 +152,26 @@ def build_pdf(question: str, report_md: str, citations: list[str],
 
     story = []
 
-    # Title — use plain ASCII so no emoji ■ box appears
     story.append(Paragraph("Research Report", title_style))
     story.append(Paragraph(f"<i>Q: {_safe_text(question)}</i>", caption_style))
     story.append(HRFlowable(width="100%", thickness=0.5,
                              color=colors.HexColor("#cccccc"), spaceAfter=10))
 
     def md_to_paragraphs(text: str):
-        """
-        Convert markdown text to ReportLab Paragraph elements.
-        Applies:
-          - Heading detection (# / ## / ###)
-          - Bullet conversion (-, *, +)
-          - Bold / italic / code inline markup
-          - Unverified-claim yellow highlighting via <font backColor>
-          - Safe Latin-1 encoding to prevent ■ boxes
-        """
         elems = []
         for line in text.splitlines():
             line = line.strip()
             if not line:
                 elems.append(Spacer(1, 4))
                 continue
-            # headings
             h_match = re.match(r"^(#{1,3})\s+(.*)", line)
             if h_match:
-                heading_text = _safe_text(h_match.group(2))
-                elems.append(Paragraph(heading_text, h2_style))
+                elems.append(Paragraph(_safe_text(h_match.group(2)), h2_style))
                 continue
-            # bullets — use ASCII hyphen instead of Unicode bullet
             if line.startswith(("- ", "* ", "+ ")):
                 line = "- " + line[2:]
-            # Apply highlight BEFORE safe_text so we can match original wording,
-            # then sanitise the result (backColor tag will survive safe_text
-            # because it uses only ASCII characters itself).
             line = _mark_to_reportlab(line, unverified)
             line = _safe_text(line)
-            # bold / italic / code (after safe_text so tags aren't mangled)
             line = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", line)
             line = re.sub(r"\*(.+?)\*", r"<i>\1</i>", line)
             line = re.sub(r"`(.+?)`", r"<font name='Courier'>\1</font>", line)
@@ -198,7 +180,6 @@ def build_pdf(question: str, report_md: str, citations: list[str],
 
     story.extend(md_to_paragraphs(report_md))
 
-    # Citations
     if citations:
         story.append(Spacer(1, 8))
         story.append(HRFlowable(width="100%", thickness=0.5,
@@ -207,15 +188,14 @@ def build_pdf(question: str, report_md: str, citations: list[str],
         for c in citations:
             story.append(Paragraph(f"- {_safe_text(c)}", cite_style))
 
-    # Eval scores
     if scores:
         story.append(Spacer(1, 8))
         story.append(Paragraph("Evaluation Scores", h2_style))
         labels = {
-            "faithfulness": "Faithfulness",
-            "answer_relevancy": "Answer Relevancy",
-            "hallucination_rate": "Hallucination Rate",
-            "latency_seconds": "Latency (s)",
+            "faithfulness":      "Faithfulness",
+            "answer_relevancy":  "Answer Relevancy",
+            "hallucination_rate":"Hallucination Rate",
+            "latency_seconds":   "Latency (s)",
         }
         for key, label in labels.items():
             val = scores.get(key)
@@ -224,6 +204,7 @@ def build_pdf(question: str, report_md: str, citations: list[str],
 
     doc.build(story)
     return buf.getvalue()
+
 
 st.set_page_config(
     page_title="Autonomous Research Assistant",
@@ -281,7 +262,6 @@ with col_input:
 with col_btn:
     run_btn = st.button("Research →", type="primary", use_container_width=True)
 
-# Quick-pick examples
 st.caption("Try: " + " · ".join([
     "Does coffee improve cognitive performance?",
     "What causes the placebo effect?",
@@ -289,11 +269,8 @@ st.caption("Try: " + " · ".join([
 ]))
 
 # ---------------------------------------------------------------------------
-# Pipeline execution
+# Session state init
 # ---------------------------------------------------------------------------
-# Persist pipeline results across reruns (e.g. when the download button is
-# clicked Streamlit reruns the whole script — without session_state the
-# results would disappear from the screen).
 if "result" not in st.session_state:
     st.session_state.result = None
 if "result_question" not in st.session_state:
@@ -301,41 +278,142 @@ if "result_question" not in st.session_state:
 if "pdf_bytes" not in st.session_state:
     st.session_state.pdf_bytes = None
 
+# ---------------------------------------------------------------------------
+# Pipeline execution — streams from FastAPI /research/stream via SSE
+# ---------------------------------------------------------------------------
 if run_btn and question.strip():
     st.divider()
 
-    # Progress display
-    progress_bar = st.progress(0, text="Starting pipeline...")
-    step_status = st.empty()
-    steps = [
-        (0.15, "🔍 Decomposing query into sub-questions..."),
-        (0.35, "🌐 Search agent running ReAct loop..."),
-        (0.55, "📚 Retrieving and ranking passages..."),
-        (0.70, "⚖️ Detecting conflicts between sources..."),
-        (0.85, "✍️ Synthesizing report..."),
-        (1.00, "📊 Running evaluation..."),
-    ]
+    progress_bar = st.progress(0, text="Connecting to research pipeline...")
+    step_status  = st.empty()
 
-    # Show progress while pipeline runs in background
-    # (In production, wire to the SSE stream endpoint instead)
-    for progress, label in steps[:-2]:
-        progress_bar.progress(progress, text=label)
-        step_status.info(label)
-        time.sleep(0.3)
+    # Placeholders created inside the run_btn block only — if they were
+    # created unconditionally they would blank themselves on every Streamlit
+    # rerun (e.g. download button click), wiping the live sidebar content.
+    # The static results block below re-renders everything from session_state.
+    sub_q_placeholder = st.sidebar.empty()
+    trace_placeholder = st.sidebar.empty()
 
-    with st.spinner("Running full pipeline..."):
-        start = time.time()
-        try:
-            result = run_pipeline(question.strip(), run_eval=True)
-        except Exception as e:
-            st.error(f"Pipeline error: {e}")
-            st.stop()
+    # Node names must match exactly what pipeline.py passes to graph.add_node()
+    NODE_PROGRESS = {
+        "decompose":          (0.15, "🔍 Decomposing query into sub-questions..."),
+        "search":             (0.35, "🌐 Search agent running ReAct loop..."),
+        "retrieve":           (0.55, "📚 Retrieving and ranking passages..."),
+        "detect":             (0.70, "⚖️ Detecting conflicts between sources..."),
+        "synthesize_normal":  (0.90, "✍️ Synthesizing report..."),
+        "synthesize_warning": (0.90, "✍️ Synthesizing report (with conflict warnings)..."),
+    }
 
-    progress_bar.progress(1.0, text="✅ Complete!")
-    step_status.empty()
+    nodes_seen:         list[str] = []
+    live_sub_questions: list[str] = []
+    live_trace:         list[str] = []
+    result = None
 
-    # Build PDF once and cache it so the download button never triggers a
-    # re-run that loses the displayed results.
+    try:
+        with requests.post(
+            f"{API_BASE}/research/stream",
+            json={"question": question.strip(), "run_eval": True},
+            stream=True,
+            timeout=300,
+        ) as resp:
+            if resp.status_code != 200:
+                st.error(f"Backend error {resp.status_code}: {resp.text}")
+                st.stop()
+
+            for raw_line in resp.iter_lines():
+                if not raw_line:
+                    continue
+                line = raw_line.decode("utf-8") if isinstance(raw_line, bytes) else raw_line
+                if not line.startswith("data:"):
+                    continue
+
+                try:
+                    event = json.loads(line[len("data:"):].strip())
+                except json.JSONDecodeError as e:
+                    print(f"[DEBUG] Bad SSE line: {repr(line)} | error: {e}")
+                    continue
+
+                etype = event.get("type")
+                data  = event.get("data", {})
+
+                if etype == "start":
+                    step_status.info("Pipeline started — waiting for first node...")
+
+                elif etype == "node_done":
+                    node = data.get("node", "")
+                    nodes_seen.append(node)
+
+                    if node in NODE_PROGRESS:
+                        frac, label = NODE_PROGRESS[node]
+                    else:
+                        frac  = min(0.88, 0.1 + 0.8 * len(nodes_seen) / max(len(NODE_PROGRESS), 1))
+                        label = f"⚙️ Running node: {node}..."
+
+                    progress_bar.progress(frac, text=label)
+                    step_status.info(label)
+
+                    if data.get("sub_questions"):
+                        live_sub_questions = data["sub_questions"]
+                    if data.get("trace"):
+                        live_trace.extend(data["trace"])
+
+                    if live_sub_questions:
+                        with sub_q_placeholder.container():
+                            st.subheader("Sub-questions")
+                            for i, q in enumerate(live_sub_questions, 1):
+                                st.markdown(f"**{i}.** {q}")
+
+                    if live_trace:
+                        with trace_placeholder.container():
+                            with st.expander("Agent reasoning trace (live)", expanded=True):
+                                for entry in live_trace[-10:]:
+                                    st.text(entry)
+
+                    if data.get("conflict_detected"):
+                        step_status.warning("⚠️ Conflicting evidence detected — continuing...")
+
+                elif etype == "complete":
+                    # eval runs on the backend after astream finishes;
+                    # scores arrive here in the complete event payload.
+                    progress_bar.progress(0.95, text="📊 Running evaluation...")
+                    step_status.info("📊 Running evaluation...")
+
+                    result = {
+                        "question":          question.strip(),
+                        "sub_questions":     live_sub_questions,
+                        "final_report":      data.get("final_report", ""),
+                        "citations":         data.get("citations", []),
+                        "unverified_claims": data.get("unverified_claims", []),
+                        "conflict_report": {
+                            "has_conflicts": data.get("conflict_detected", False),
+                            "pairs":         [],
+                        },
+                        # eval_scores is populated by evaluate_state() in main.py
+                        # after the astream loop; it arrives here in the complete event.
+                        "eval_scores":       data.get("eval_scores"),
+                        "reasoning_trace":   data.get("reasoning_trace", live_trace),
+                    }
+                    progress_bar.progress(1.0, text="✅ Complete!")
+                    step_status.empty()
+
+                elif etype == "error":
+                    st.error(f"Pipeline error: {data.get('message', 'unknown error')}")
+                    st.stop()
+
+    except requests.exceptions.ConnectionError:
+        st.error(
+            f"Could not connect to the FastAPI backend at **{API_BASE}**. "
+            "Make sure it is running with: `uvicorn main:app --reload`"
+        )
+        st.stop()
+    except requests.exceptions.Timeout:
+        st.error("Request timed out after 5 minutes. The pipeline may still be running.")
+        st.stop()
+
+    if result is None:
+        st.error("Stream ended without a 'complete' event. Check the backend logs.")
+        st.stop()
+
     unverified = result.get("unverified_claims") or []
     pdf_bytes = build_pdf(
         question=question,
@@ -346,21 +424,23 @@ if run_btn and question.strip():
         unverified=unverified,
     )
 
-    # Persist everything in session state
-    st.session_state.result = result
+    st.session_state.result          = result
     st.session_state.result_question = question
-    st.session_state.pdf_bytes = pdf_bytes
+    st.session_state.pdf_bytes       = pdf_bytes
+
+    # Do NOT clear the live placeholders here — clearing then re-rendering
+    # in the same Streamlit pass causes a blank flash.  The static results
+    # block below renders the same content from session_state on every rerun,
+    # so the sidebar stays populated after the download button is clicked.
 
 elif run_btn and not question.strip():
     st.warning("Please enter a research question.")
 
 # ---------------------------------------------------------------------------
-# Results layout — rendered from session_state so it survives the download
-# button rerun as well as the initial pipeline run rerun.
+# Results layout — rendered from session_state so it survives reruns
 # ---------------------------------------------------------------------------
 if st.session_state.result is not None:
-    result = st.session_state.result
-    question_display = st.session_state.result_question
+    result    = st.session_state.result
     pdf_bytes = st.session_state.pdf_bytes
 
     st.divider()
@@ -369,7 +449,6 @@ if st.session_state.result is not None:
     col_report, col_sidebar = st.columns([3, 1])
 
     with col_report:
-        # Conflict warning
         if conflict["has_conflicts"]:
             st.markdown(
                 f"""<div class="conflict-box">
@@ -380,7 +459,6 @@ if st.session_state.result is not None:
                 unsafe_allow_html=True,
             )
 
-        # Unverified claims — inline highlight notice (no separate list)
         unverified = result.get("unverified_claims") or []
         if unverified:
             st.markdown(
@@ -392,23 +470,16 @@ if st.session_state.result is not None:
                 unsafe_allow_html=True,
             )
 
-        # Report — with unverified claims highlighted inline
         st.subheader("Research Report")
         report_html = highlight_unverified_claims(result["final_report"], unverified)
-        # Render as HTML so <mark> tags work
         st.markdown(report_html, unsafe_allow_html=True)
 
-        # Citations
         if result.get("citations"):
             st.subheader("Sources")
             for c in result["citations"]:
                 st.markdown(f"- {c}")
 
-        # ── PDF export ──────────────────────────────────────────────────────
         st.divider()
-        # pdf_bytes was built once after pipeline ran and stored in session_state.
-        # Clicking this button will trigger a Streamlit rerun, but since we
-        # render from session_state the page content is unchanged.
         st.download_button(
             label="⬇️ Export as PDF",
             data=pdf_bytes,
@@ -418,34 +489,31 @@ if st.session_state.result is not None:
         )
 
     with col_sidebar:
-        # Sub-questions
         st.subheader("Sub-questions")
         for i, q in enumerate(result.get("sub_questions", []), 1):
             st.markdown(f"**{i}.** {q}")
 
         st.divider()
 
-        # Eval scores
         scores = result.get("eval_scores") or {}
         st.subheader("Eval scores")
 
-        cols = st.columns(2)
-        metrics = [
-            ("Faithfulness", scores.get("faithfulness")),
-            ("Relevancy", scores.get("answer_relevancy")),
-            ("Hallucination", scores.get("hallucination_rate")),
-            ("Latency (s)", scores.get("latency_seconds")),
-        ]
-        for i, (label, val) in enumerate(metrics):
-            with cols[i % 2]:
-                if val is not None:
-                    st.metric(label, f"{val:.2f}")
-                else:
-                    st.metric(label, "—")
+        if not scores:
+            st.caption("Scores unavailable — eval may have been skipped or failed.")
+        else:
+            cols = st.columns(2)
+            metrics = [
+                ("Faithfulness",  scores.get("faithfulness")),
+                ("Relevancy",     scores.get("answer_relevancy")),
+                ("Hallucination", scores.get("hallucination_rate")),
+                ("Latency (s)",   scores.get("latency_seconds")),
+            ]
+            for i, (label, val) in enumerate(metrics):
+                with cols[i % 2]:
+                    st.metric(label, f"{val:.2f}" if val is not None else "—")
 
         st.divider()
 
-        # Reasoning trace
         with st.expander("Agent reasoning trace", expanded=False):
             for entry in result.get("reasoning_trace", []):
                 st.text(entry)

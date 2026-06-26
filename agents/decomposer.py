@@ -51,7 +51,7 @@ def decompose_query(state: ResearchState) -> ResearchState:
     
 
     sub_questions = json.loads(decomposed_query)
-
+    sub_questions.append(question)
     # Mock output so pipeline runs end-to-end from Day 1
     # sub_questions = [
     #     f"What does research say about {question.lower().rstrip('?')} and health outcomes?",

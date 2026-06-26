@@ -87,7 +87,7 @@ def mock_state() -> ResearchState:
             "What are the cognitive effects of intermittent fasting?",
             "Are there risks or side effects of long-term intermittent fasting?",
         ],
-        reasoning_trace=["[P1] Decomposed into 4 sub-questions."],
+        reasoning_trace=["[Decomposer] Decomposed into 4 sub-questions."],
         search_results=[
             SearchResult(
                 url="https://pubmed.ncbi.nlm.nih.gov/example1",
