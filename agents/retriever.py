@@ -51,7 +51,7 @@ _TOP_K         = configs.get("TOP_K", 20)            # candidates retrieved per 
 _CE_TOP_N      = configs.get("CE_TOP_N", 40)         # max candidates passed to cross-encoder
 _FINAL_TOP_N   = configs.get("TOP_N", 5)             # final passages returned
 _MMR_LAMBDA    = configs.get("MMR_LAMBDA", 0.7)      # 1.0 = pure relevance, 0.0 = pure diversity
-_RRF_K         = configs.get("RRF_K", 60)                                           # standard RRF constant (not tuned)
+_RRF_K         = configs.get("RRF_K", 60)            # standard RRF constant (not tuned)
 
 
 
