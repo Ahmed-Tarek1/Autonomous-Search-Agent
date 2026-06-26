@@ -11,10 +11,10 @@ LANGCHAIN_TRACING_V2: true            # Enable LangSmith tracing for this module
 
 # Search agent configuration
 SEARCH_TEMPERATURE: 0
-MAX_ITERATIONS: 5
-MIN_SOURCES: 3
-MIN_DOMAINS: 2
-TAVILY_MAX_RESULTS: 5
+MAX_ITERATIONS: 6
+MIN_SOURCES: 4
+MIN_DOMAINS: 3
+TAVILY_MAX_RESULTS: 8
 
 # Decomposer Configurations
 MIN_QUESTIONS: 2

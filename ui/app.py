@@ -180,13 +180,13 @@ def build_pdf(question: str, report_md: str, citations: list[str],
 
     story.extend(md_to_paragraphs(report_md))
 
-    # if citations:
-    #     story.append(Spacer(1, 8))
-    #     story.append(HRFlowable(width="100%", thickness=0.5,
-    #                              color=colors.HexColor("#cccccc"), spaceAfter=6))
-    #     story.append(Paragraph("Sources", h2_style))
-    #     for c in citations:
-    #         story.append(Paragraph(f"- {_safe_text(c)}", cite_style))
+    if citations:
+        story.append(Spacer(1, 8))
+        story.append(HRFlowable(width="100%", thickness=0.5,
+                                 color=colors.HexColor("#cccccc"), spaceAfter=6))
+        story.append(Paragraph("Sources", h2_style))
+        for c in citations:
+            story.append(Paragraph(f"- {_safe_text(c)}", cite_style))
 
     if scores:
         story.append(Spacer(1, 8))
