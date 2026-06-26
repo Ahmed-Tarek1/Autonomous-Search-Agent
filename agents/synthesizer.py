@@ -88,10 +88,10 @@ def synthesize_report(state: ResearchState) -> ResearchState:
     question = state["question"]
     conflict_report = state["conflict_report"]
     has_conflicts = conflict_report["has_conflicts"]
-
+    
     passages_block = ""
     for i, p in enumerate(passages):
-        truncated_text = p["text"][:500]
+        truncated_text = p["text"][:]
         passages_block += f"[Source {i+1}]\nTitle: {p['title']}\nURL: {p['url']}\nContent: {truncated_text}\n\n"
 
     if has_conflicts:
