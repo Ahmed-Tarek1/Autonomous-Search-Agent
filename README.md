@@ -199,21 +199,6 @@ Compare against **baseline**: same 5 questions through a single bare LLM call wi
 
 ---
 
-## Demo script (Day 7)
-
-1. **P1** — opens demo, shows pipeline diagram (2 min)
-2. **P2** — submits question 1 (clean), narrates live ReAct loop in the UI
-3. **P3** — explains why 5 passages were selected from 40 candidates
-4. **P4** — submits question 2 (conflicting sources), narrates the conflict detection moment
-5. **P5** — shows final report: inline citations, "Conflicting Evidence" section, PDF download
-6. **P6** — shows benchmark results slide: pipeline vs baseline scores
-
-**Best demo question for conflict detection:**  
-*"Is intermittent fasting more effective than continuous caloric restriction for weight loss?"*  
-— real scientific literature genuinely disagrees on this.
-
----
-
 ## Troubleshooting
 
 **Qdrant connection error**  
