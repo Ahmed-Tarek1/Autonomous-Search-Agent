@@ -137,7 +137,7 @@ def synthesize_report(state: ResearchState) -> ResearchState:
     final_report += "\n\n## Sources\n" + "\n".join(f"*{c}*" for c in citations)
 
     path_str = "conflict" if has_conflicts else "normal"
-    trace_msg = f"[P5] Successfully synthesized report via {path_str} path using Groq (Llama-3.1). Found {len(unverified_claims)} unverified claims during self-audit."
+    trace_msg = f"Successfully synthesized report. Found {len(unverified_claims)} unverified claims during self-audit."
 
     return {
         "final_report": final_report,

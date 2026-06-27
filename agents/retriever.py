@@ -340,7 +340,7 @@ def retrieve_passages(state: ResearchState) -> ResearchState:
         return {
             "retrieved_passages": passages,
             "reasoning_trace": [
-                f"[P3] Retrieved {len(passages)} passages from {len(search_results)} results "
+                f"Retrieved {len(passages)} passages from {len(search_results)} results "
                 f"(chunked into {len(records)}, BM25+dense RRF fusion, "
                 f"{len(ce_candidates)} cross-encoder re-ranked, MMR diversity selected)."
             ],
