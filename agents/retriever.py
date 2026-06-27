@@ -20,6 +20,7 @@ import time
 import uuid
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
+from functools import lru_cache
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from rank_bm25 import BM25Okapi
@@ -91,7 +92,13 @@ qdrant = (
     if _QDRANT_URL and _QDRANT_API_KEY
     else QdrantClient(":memory:")
 )
-
+# ---------------------------------------------------------------------------
+# Query embedding cache
+# ---------------------------------------------------------------------------
+@lru_cache(maxsize=128)
+def _encode_query(query: str) -> np.ndarray:
+    """Encode a single query string with the BGE prefix. Result is cached."""
+    return EMBEDDER.encode(_QUERY_PREFIX + query, show_progress_bar=False)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -257,11 +264,7 @@ def retrieve_passages(state: ResearchState) -> ResearchState:
         # This avoids the problem of BM25 and cosine scores being on different scales.
         # ------------------------------------------------------------------
         queries = [question] + list(sub_questions)
-        # BGE query prefix enables asymmetric retrieval (query vs passage optimisation)
-        query_vecs = EMBEDDER.encode(
-            [_QUERY_PREFIX + q for q in queries],
-            show_progress_bar=False,
-        )
+        query_vecs = np.array([_encode_query(q) for q in queries])
 
         rrf_scores: dict[int, float] = {}
 
