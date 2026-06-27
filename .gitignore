@@ -35,6 +35,9 @@ test.py
 .langchain.db
 langchain_cache/
 
+#Model cache
+model_cache/
+
 # Streamlit
 .streamlit/
 
