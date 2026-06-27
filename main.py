@@ -1,8 +1,6 @@
 """
 main.py — FastAPI Backend
 ==========================
-Owner: Person 5
-
 Fix v2: /research/stream now uses LangGraph's real astream() for live
         per-node events instead of fake sleep-based progress.
 
