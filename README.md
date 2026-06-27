@@ -166,24 +166,6 @@ pytest tests/ -v
 
 ---
 
-## Shared state contract
-
-```python
-class ResearchState(TypedDict):
-    question:            str          # Input — never overwritten
-    sub_questions:       List[str]    # P1 writes
-    reasoning_trace:     List[str]    # All modules append
-    search_results:      List[SearchResult]    # P2 writes
-    retrieved_passages:  List[Passage]         # P3 writes
-    conflict_report:     ConflictReport        # P4 writes
-    final_report:        str                   # P5 writes
-    citations:           List[str]             # P5 writes
-    unverified_claims:   List[str]             # P5 writes
-    eval_scores:         Optional[dict]        # P6 writes
-```
-
----
-
 ## Evaluation metrics
 
 Person 6 runs the benchmark suite against 5 research questions, 3 runs each:
