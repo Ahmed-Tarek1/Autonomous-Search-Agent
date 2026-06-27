@@ -90,7 +90,7 @@ def _run_ragas_in_thread(state: ResearchState) -> dict:
     asyncio.set_event_loop(loop)
     try:
         if not state.get("final_report") or not state.get("retrieved_passages"):
-            print("[P6] Warning: empty report or passages — skipping RAGAS")
+            print("Warning: empty report or passages — skipping RAGAS")
             return {"faithfulness": None, "answer_relevancy": None}
 
         data = Dataset.from_dict({
@@ -111,7 +111,7 @@ def _run_ragas_in_thread(state: ResearchState) -> dict:
         }
 
     except Exception as e:
-        print(f"[P6] RAGAS error: {e}")
+        print(f"RAGAS error: {e}")
         return {"faithfulness": None, "answer_relevancy": None}
     finally:
         loop.close()
@@ -175,7 +175,7 @@ def evaluate_state(
         "latency_seconds":        latency_seconds,
     }
 
-    print("[P6] Eval scores:")
+    print("Eval scores:")
     for k, v in result.items():
         print(f"     {k}: {v}")
 
@@ -194,7 +194,7 @@ def run_benchmark(pipeline_fn, n_runs: int = 3):
     all_results = {m: [] for m in metrics}
 
     for question in BENCHMARK_QUESTIONS:
-        print(f"\n[P6] Benchmarking: {question}")
+        print(f"\nBenchmarking: {question}")
         for run in range(n_runs):
             start = time.time()
             final_state = pipeline_fn({"question": question})
@@ -206,7 +206,7 @@ def run_benchmark(pipeline_fn, n_runs: int = 3):
                 if val is not None:
                     all_results[m].append(val)
 
-    print("\n[P6] === Benchmark Results ===")
+    print("\n=== Benchmark Results ===")
     for m in metrics:
         vals = all_results[m]
         if vals:
@@ -216,7 +216,7 @@ def run_benchmark(pipeline_fn, n_runs: int = 3):
 
 
 # ---------------------------------------------------------------------------
-# Local test — python agents/p6_evaluator.py
+# Local test — python agents/evaluator.py
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
     import json

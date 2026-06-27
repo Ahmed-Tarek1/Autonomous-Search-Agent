@@ -37,7 +37,6 @@ decomposer: LLMCaller = LLMCaller(api_key=os.getenv("GROQ_API_KEY"), model=confi
 def decompose_query(state: ResearchState) -> ResearchState:
     
     """
-    TODO (Person 1): Implement query decomposition using Claude.
     - Call LLM with DECOMPOSE_SYSTEM prompt to generate 3–5 sub-questions
     - Deduplicate (case-insensitive exact match)
     - Run a self-critique LLM pass to sharpen vague sub-questions
@@ -62,7 +61,7 @@ def decompose_query(state: ResearchState) -> ResearchState:
     return {
     "sub_questions": sub_questions,
     "reasoning_trace": [
-        f"[P1] Decomposed '{question}' into {len(sub_questions)} sub-questions"
+        f"Decomposed '{question}' into {len(sub_questions)} sub-questions"
     ],
 }
 
